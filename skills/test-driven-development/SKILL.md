@@ -38,6 +38,12 @@ NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 
 Write code before the test? Delete it. Start over.
 
+Never combine RED and GREEN in one step for speed. The required order is:
+1. write failing test
+2. run and observe expected failure
+3. write minimal production code
+4. run and observe pass
+
 **No exceptions:**
 - Don't keep it as "reference"
 - Don't "adapt" it while writing tests
@@ -45,6 +51,17 @@ Write code before the test? Delete it. Start over.
 - Delete means delete
 
 Implement fresh from tests. Period.
+
+## Research Phase (Before Writing Anything)
+
+Before writing tests or production code:
+
+1. **Search the codebase** for similar implementations
+2. **Understand existing patterns** and conventions
+3. **Identify files** that will need modification
+4. **Check for naming conflicts** with language built-ins
+
+This keeps new tests and implementation aligned with how the project already works.
 
 ## Red-Green-Refactor
 
@@ -74,9 +91,16 @@ digraph tdd_cycle {
 
 Write one minimal test showing what should happen.
 
+Use **Arrange-Act-Assert (AAA)** format and separate each phase with a blank line:
+
+- **Arrange**: set up test data and dependencies
+- **Act**: execute the behavior under test (ideally one line)
+- **Assert**: verify outcomes
+
 <Good>
 ```typescript
 test('retries failed operations 3 times', async () => {
+  // Arrange
   let attempts = 0;
   const operation = () => {
     attempts++;
@@ -84,8 +108,10 @@ test('retries failed operations 3 times', async () => {
     return 'success';
   };
 
+  // Act
   const result = await retryOperation(operation);
 
+  // Assert
   expect(result).toBe('success');
   expect(attempts).toBe(3);
 });
@@ -104,13 +130,14 @@ test('retry works', async () => {
   expect(mock).toHaveBeenCalledTimes(3);
 });
 ```
-Vague name, tests mock not code
+Vague name, tests mock not code, no explicit AAA structure
 </Bad>
 
 **Requirements:**
 - One behavior
 - Clear name
 - Real code (no mocks unless unavoidable)
+- AAA structure with blank lines between phases
 
 ### Verify RED - Watch It Fail
 
@@ -128,6 +155,8 @@ Confirm:
 **Test passes?** You're testing existing behavior. Fix test.
 
 **Test errors?** Fix error, re-run until it fails correctly.
+
+**Cannot run tests in the environment (DB down, tooling unavailable, etc.)?** Stop and wait for the human partner. Do not continue implementation while claiming TDD.
 
 ### GREEN - Minimal Code
 
@@ -331,6 +360,7 @@ Extract validation for multiple fields if needed.
 Before marking work complete:
 
 - [ ] Every new function/method has a test
+- [ ] Tests follow Arrange-Act-Assert with blank-line separation
 - [ ] Watched each test fail before implementing
 - [ ] Each test failed for expected reason (feature missing, not typo)
 - [ ] Wrote minimal code to pass each test
@@ -358,10 +388,43 @@ Never fix bugs without a test.
 
 ## Testing Anti-Patterns
 
-When adding mocks or test utilities, read @testing-anti-patterns.md to avoid common pitfalls:
-- Testing mock behavior instead of real behavior
-- Adding test-only methods to production classes
-- Mocking without understanding dependencies
+Keep @testing-anti-patterns.md as the full reference. The critical pitfalls are also inlined here:
+
+### Don't Test Mock Behavior
+
+❌ Bad: asserting on mock-only markers or mock implementation details.
+
+✅ Good: assert real behavior and user-visible outcomes.
+
+If you're asserting that a mock rendered, you are testing the mock, not production behavior.
+
+### Don't Add Test-Only Methods to Production Classes
+
+❌ Bad: adding methods only tests call (for example `destroy()` used only in cleanup).
+
+✅ Good: move cleanup concerns into test utilities.
+
+Production APIs should exist for production needs, not test convenience.
+
+### Don't Mock Without Understanding Dependencies
+
+❌ Bad: mocking high-level functions with side effects your test relies on.
+
+✅ Good: mock only slow/external edges while preserving required behavior.
+
+Before mocking, ask: what side effects does the real method have, and does this test depend on them?
+
+### Don't Create Incomplete Mocks
+
+❌ Bad: partial response objects containing only fields you noticed initially.
+
+✅ Good: mocks that mirror the real structure your system consumes.
+
+Incomplete mocks create false confidence and hide integration breakages.
+
+### Keep Mocks Proportional
+
+If mock setup is larger than the test logic, reconsider the design or use an integration-style test.
 
 ## Final Rule
 
