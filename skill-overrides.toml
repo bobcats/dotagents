@@ -1,0 +1,9 @@
+# skill-overrides.toml - Frontmatter overrides applied during build
+#
+# Keys are skill names (directory names). Values are frontmatter fields
+# to add or replace.
+#
+# Example:
+# [brainstorming]
+# disable-model-invocation = true
+# description = "Custom trigger description"

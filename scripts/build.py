@@ -13,6 +13,7 @@ Requires Python 3.11+.
 import argparse
 import shutil
 import sys
+import tomllib
 from pathlib import Path
 
 if sys.version_info < (3, 11):
@@ -25,6 +26,7 @@ AGENTS_DIR = ROOT / "agents"
 BUILD_DIR = ROOT / "build"
 CONFIGS_DIR = ROOT / "configs"
 GLOBAL_AGENTS_MD = CONFIGS_DIR / "AGENTS.md"
+SKILL_OVERRIDES_FILE = ROOT / "skill-overrides.toml"
 
 # Installation paths
 HOME = Path.home()
@@ -33,6 +35,45 @@ INSTALL_PATHS = {
     "unified": HOME / ".agents" / "skills",  # opencode, pi, codex
 }
 PI_AGENTS_PATH = HOME / ".pi" / "agent" / "agents"
+
+
+def load_skill_overrides() -> dict[str, dict]:
+    """Load per-skill frontmatter overrides from skill-overrides.toml."""
+    if not SKILL_OVERRIDES_FILE.exists():
+        return {}
+    with open(SKILL_OVERRIDES_FILE, "rb") as f:
+        return tomllib.load(f)
+
+
+def apply_frontmatter_overrides(content: str, overrides: dict[str, str]) -> str:
+    """Add or replace frontmatter fields based on overrides dict."""
+    import re
+
+    if not overrides:
+        return content
+
+    frontmatter_pattern = r"^---\s*\n(.*?)\n---"
+    match = re.match(frontmatter_pattern, content, re.DOTALL)
+    if not match:
+        return content
+
+    frontmatter = match.group(1)
+
+    for key, value in overrides.items():
+        if isinstance(value, bool):
+            yaml_value = "true" if value else "false"
+        else:
+            yaml_value = str(value)
+
+        field_pattern = rf"^{re.escape(key)}:\s*.*$"
+        if re.search(field_pattern, frontmatter, re.MULTILINE):
+            frontmatter = re.sub(
+                field_pattern, f"{key}: {yaml_value}", frontmatter, flags=re.MULTILINE
+            )
+        else:
+            frontmatter += f"\n{key}: {yaml_value}"
+
+    return content[: match.start(1)] + frontmatter + content[match.end(1) :]
 
 
 def fix_skill_frontmatter_name(content: str, expected_name: str) -> str:
@@ -60,7 +101,7 @@ def fix_skill_frontmatter_name(content: str, expected_name: str) -> str:
     return content[: match.start(1)] + new_frontmatter + content[match.end(1) :]
 
 
-def build_skill(name: str, source: Path) -> bool:
+def build_skill(name: str, source: Path, overrides: dict[str, dict] | None = None) -> bool:
     """Build a single skill from source directory."""
     skill_md = source / "SKILL.md"
     if not skill_md.exists():
@@ -74,6 +115,11 @@ def build_skill(name: str, source: Path) -> bool:
 
     dest_skill_md = dest / "SKILL.md"
     skill_content = fix_skill_frontmatter_name(raw_content, name)
+
+    # Apply per-skill frontmatter overrides
+    if overrides and name in overrides:
+        skill_content = apply_frontmatter_overrides(skill_content, overrides[name])
+
     dest_skill_md.write_text(skill_content)
 
     for item in source.iterdir():
@@ -97,12 +143,13 @@ def build_skills() -> None:
         shutil.rmtree(skills_build)
     skills_build.mkdir(parents=True)
 
+    overrides = load_skill_overrides()
     built = 0
     if SKILLS_DIR.exists():
         for skill_dir in sorted(SKILLS_DIR.iterdir()):
             if not skill_dir.is_dir():
                 continue
-            if build_skill(skill_dir.name, skill_dir):
+            if build_skill(skill_dir.name, skill_dir, overrides):
                 print(f"  {skill_dir.name}")
                 built += 1
 
