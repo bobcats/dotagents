@@ -70,6 +70,21 @@ digraph brainstorming {
 
 **The terminal state is invoking writing-plans.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is writing-plans.
 
+<HARD-GATE>
+Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
+</HARD-GATE>
+
+## Anti-Pattern: "This Is Too Simple To Need A Design"
+
+Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
+
+## Upstream
+
+This skill is the design stage. Work may arrive here from:
+- **Shaping** — if using Shape Up (`shaping`, `breadboarding`, `kickoff-doc` skills), brainstorming refines the shaped pitch into an implementable design
+- **Findings** — complex findings from `code-review`, `refactoring`, or `systematic-debugging` that need design exploration before planning
+- **New ideas** — user brings an idea directly
+
 ## The Process
 
 **Understanding the idea:**
@@ -87,6 +102,7 @@ digraph brainstorming {
 - Propose 2-3 different approaches with trade-offs
 - Present options conversationally with your recommendation and reasoning
 - Lead with your recommended option and explain why
+- For novel architecture decisions, consider consulting a second opinion (see `consult-before-building` principle)
 
 **Presenting the design:**
 
@@ -120,7 +136,7 @@ For topics that involve visual questions (UI mockups, layouts, diagrams), offer 
 **Documentation:**
 
 - Write the validated design to `docs/design/YYYY-MM-DD-<topic>.md`
-- Use elements-of-style:writing-clearly-and-concisely skill if available
+- Use the `writing-clearly-and-concisely` skill for clearer prose
 - Commit the design document to git
 
 **Spec Review Loop:**
@@ -141,7 +157,7 @@ Wait for the user's response. If they request changes, make them and re-run the 
 
 **Implementation:**
 
-- Invoke the writing-plans skill to create a detailed implementation plan
+- Invoke the `writing-plans` skill to create a detailed implementation plan
 
 ## Key Principles
 
@@ -151,3 +167,5 @@ Wait for the user's response. If they request changes, make them and re-run the 
 - **Explore alternatives** - Always propose 2-3 approaches before settling
 - **Incremental validation** - Present design in sections, validate each
 - **Be flexible** - Go back and clarify when something doesn't make sense
+- **No implementation during brainstorm** - do not edit code, write files, or run mutating commands until the human explicitly exits brainstorming
+- **Answer the question asked** - when the human asks for explanation/analysis, respond with explanation only unless they ask for changes

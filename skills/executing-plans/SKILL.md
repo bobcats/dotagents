@@ -23,24 +23,32 @@ Load plan, review critically, execute all tasks, report when complete.
 
 ### Step 2: Execute Tasks
 
-For each task:
-1. Mark as in_progress
-2. Follow each step exactly (plan has bite-sized steps)
-3. Run verifications as specified
-4. Mark as completed
-5. Continue to next task
+Work through `- [ ]` items **one at a time, sequentially**:
+1. Pick the next unchecked `- [ ]` item
+2. Mark as in_progress
+3. Follow each step exactly (plan has bite-sized steps)
+4. Run verifications as specified
+5. Check it off in the plan file (`- [ ]` → `- [x]`) before moving on
+6. Commit at stable checkpoint when the item closes (do not accumulate big-bang changes)
+   - Use the `semantic-commit` skill for commit messages
+7. If blocked: Stop and ask for help (don't guess)
+   - If blocked by a bug: use the `systematic-debugging` skill, then return to this task
+8. Continue to next item
+
+**Hard gate:** Do NOT start the next `- [ ]` item until the current one is checked off. One item, verified, checked off, then next. No batching, no parallelizing, no "I'll check these off together at the end."
 
 ### Step 3: Complete
 
 After all tasks complete and verified:
-- Run final verifications as specified in the plan
+- Use the `verification-before-completion` skill for final checks
+- If the plan included documentation tasks, use the `document-writing` skill (with `writing-clearly-and-concisely` for prose quality)
 - Summarize completed work and verification output
 
 ## When to Stop and Ask for Help
 
 **STOP executing immediately when:**
 - Hit a blocker (missing dependency, test fails, instruction unclear)
-- Plan has critical gaps preventing starting
+- Plan has critical gaps preventing progress on the current task
 - You don't understand an instruction
 - Verification fails repeatedly
 
