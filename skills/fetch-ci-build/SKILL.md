@@ -1,6 +1,9 @@
 ---
 name: fetch-ci-build
 description: Fetch CI build results and diagnose failures. Auto-detects provider from project files or URLs. Supports GitHub Actions, Buildkite, and CircleCI.
+disable-model-invocation: true
+metadata:
+  category: tools
 ---
 
 # Fetch CI Build
@@ -140,8 +143,11 @@ If the failure requires deeper investigation (e.g., unclear root cause, flaky te
 | Build still running | Wait for completion or check partial results |
 | Rate limiting | Wait and retry |
 
-## Integration with Other Skills
+## What Happens Next
 
-- **systematic-debugging**: Use for complex failures requiring root cause analysis
-- **test-driven-development**: After fixing, ensure tests follow TDD principles
-- **verification-before-completion**: Run tests locally before pushing fix
+After diagnosing a failure:
+
+- **Quick fix** (obvious, < 5 min): fix directly with `test-driven-development` + `verification-before-completion`
+- **Unclear root cause**: use `systematic-debugging` to investigate first
+- **Needs design exploration**: use `brainstorming` to explore the approach
+- **Clear scope, multi-step**: create a plan with `writing-plans`, execute with `executing-plans`
