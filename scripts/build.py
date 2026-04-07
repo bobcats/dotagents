@@ -33,6 +33,7 @@ INSTALL_PATHS = {
 }
 PI_AGENTS_PATH = HOME / ".pi" / "agent" / "agents"
 PI_EXTENSIONS_PATH = HOME / ".pi" / "agent" / "extensions"
+PI_EXTENSIONS_MANIFEST = ".dotagents-managed-extensions"
 
 
 def fix_skill_frontmatter_name(content: str, expected_name: str) -> str:
@@ -219,6 +220,30 @@ def install_agents() -> None:
     print(f"  pi-subagents: {count} agents -> {PI_AGENTS_PATH}")
 
 
+def managed_extensions_manifest_path() -> Path:
+    return PI_EXTENSIONS_PATH / PI_EXTENSIONS_MANIFEST
+
+
+
+def load_managed_extensions() -> set[str]:
+    manifest = managed_extensions_manifest_path()
+    if not manifest.exists():
+        return set()
+    return {
+        line.strip()
+        for line in manifest.read_text().splitlines()
+        if line.strip()
+    }
+
+
+
+def save_managed_extensions(names: set[str]) -> None:
+    manifest = managed_extensions_manifest_path()
+    content = "".join(f"{name}\n" for name in sorted(names))
+    manifest.write_text(content)
+
+
+
 def install_extensions() -> None:
     """Install built Pi extensions to the Pi extensions directory."""
     print("Installing extensions...")
@@ -230,6 +255,18 @@ def install_extensions() -> None:
 
     PI_EXTENSIONS_PATH.mkdir(parents=True, exist_ok=True)
 
+    source_names = {
+        extension_dir.name
+        for extension_dir in sorted(source.iterdir())
+        if extension_dir.is_dir()
+    }
+    previous_managed = load_managed_extensions()
+
+    for stale_name in sorted(previous_managed - source_names):
+        stale_path = PI_EXTENSIONS_PATH / stale_name
+        if stale_path.exists():
+            shutil.rmtree(stale_path)
+
     count = 0
     for extension_dir in sorted(source.iterdir()):
         if not extension_dir.is_dir():
@@ -240,6 +277,7 @@ def install_extensions() -> None:
         shutil.copytree(extension_dir, dest)
         count += 1
 
+    save_managed_extensions(source_names)
     print(f"  pi: {count} extensions -> {PI_EXTENSIONS_PATH}")
 
 
@@ -280,11 +318,16 @@ def clean() -> None:
                 print(f"  Removed {installed}")
 
     if PI_EXTENSIONS_PATH.exists():
-        for extension_dir in extension_dirs():
-            installed = PI_EXTENSIONS_PATH / extension_dir.name
+        for extension_name in sorted(load_managed_extensions()):
+            installed = PI_EXTENSIONS_PATH / extension_name
             if installed.exists():
                 shutil.rmtree(installed)
                 print(f"  Removed {installed}")
+
+        manifest = managed_extensions_manifest_path()
+        if manifest.exists():
+            manifest.unlink()
+            print(f"  Removed {manifest}")
 
     agents_md_path = HOME / ".agents" / "AGENTS.md"
     if agents_md_path.exists():

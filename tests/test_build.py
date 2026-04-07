@@ -49,6 +49,35 @@ class BuildExtensionsTests(unittest.TestCase):
 
             self.assertTrue((self.build.PI_EXTENSIONS_PATH / "session-query" / "index.ts").exists())
 
+    def test_install_extensions_removes_stale_managed_extensions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            built = root / "build" / "extensions" / "session-query"
+            built.mkdir(parents=True)
+            (built / "index.ts").write_text("export default function () {}\n")
+
+            installed = root / "installed-extensions"
+            stale = installed / "old-ext"
+            stale.mkdir(parents=True)
+            (stale / "index.ts").write_text("export default function () {}\n")
+
+            unmanaged = installed / "third-party"
+            unmanaged.mkdir(parents=True)
+            (unmanaged / "index.ts").write_text("export default function () {}\n")
+
+            manifest = installed / ".dotagents-managed-extensions"
+            manifest.write_text("old-ext\nsession-query\n")
+
+            self.build.BUILD_DIR = root / "build"
+            self.build.PI_EXTENSIONS_PATH = installed
+
+            self.build.install_extensions()
+
+            self.assertFalse((installed / "old-ext").exists())
+            self.assertTrue((installed / "session-query" / "index.ts").exists())
+            self.assertTrue((installed / "third-party" / "index.ts").exists())
+            self.assertEqual(manifest.read_text(), "session-query\n")
+
 
 if __name__ == "__main__":
     unittest.main()
