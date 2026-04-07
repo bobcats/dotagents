@@ -1,6 +1,8 @@
 ---
 name: receiving-code-review
 description: Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation
+metadata:
+  category: superpowers
 ---
 
 # Code Review Reception
@@ -109,6 +111,14 @@ FOR multi-item feedback:
   3. Test each fix individually
   4. Verify no regressions
 ```
+
+## What Happens Next
+
+After understanding and verifying all feedback items, for changes you choose to make:
+
+- **Quick fix** (obvious, < 5 min): apply directly with `test-driven-development` + `verification-before-completion`
+- **Needs design exploration**: use `brainstorming` to explore the approach
+- **Clear scope, multi-step**: create a plan with `writing-plans`, execute with `executing-plans`
 
 ## When To Push Back
 
