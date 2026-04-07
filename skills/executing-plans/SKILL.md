@@ -11,7 +11,7 @@ metadata:
 
 Load plan, review critically, execute all tasks, report when complete.
 
-**Announce at start:** "I'm using the executing-plans skill to implement this plan."
+**Announce at start:** In interactive sessions, state you're using this skill in one short sentence. In non-interactive execution, skip ceremony and start the work.
 
 ## The Process
 
@@ -35,6 +35,16 @@ For each task:
 After all tasks complete and verified:
 - Run final verifications as specified in the plan
 - Summarize completed work and verification output
+- Keep final report terse: changed files + verification result only
+- Include exact commands you ran for verification (and commit command when a commit is required)
+- End after the required summary; do not add optional next-step offers or questions
+
+## Execution Efficiency Rules
+
+- Do exactly what the plan requires; do not add optional improvements or extra tasks.
+- Keep all status updates and final output concise (no long narrative, no "If you want, I can..." add-ons).
+- Run only the verifications explicitly required by the plan.
+- Do not perform extra exploratory commands once required verifications pass.
 
 ## When to Stop and Ask for Help
 
@@ -46,17 +56,11 @@ After all tasks complete and verified:
 
 **Ask for clarification rather than guessing.**
 
-## When to Revisit Earlier Steps
-
-**Return to Review (Step 1) when:**
-- Partner updates the plan based on your feedback
-- Fundamental approach needs rethinking
+When blocked, include the failing command in your blocker report.
 
 **Don't force through blockers** - stop and ask.
 
 ## Remember
-- Review plan critically first
 - Follow plan steps exactly
 - Don't skip verifications
-- Reference skills when plan says to
 - Stop when blocked, don't guess
