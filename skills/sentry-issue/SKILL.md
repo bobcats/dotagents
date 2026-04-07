@@ -1,26 +1,35 @@
 ---
 name: sentry-issue
-description: Use when given a Sentry issue URL and you need to fetch exception details, stacktrace, and request context using sentry-cli (and Sentry API fallback when needed).
+description: "Fetch and analyze Sentry issues, events, transactions, and logs. Use when given a Sentry issue URL, investigating errors by time window, searching logs, or listing unresolved issues."
+origin: https://github.com/mitsuhiko/agent-stuff/blob/main/skills/sentry/SKILL.md
+disable-model-invocation: true
+metadata:
+  category: tools
 ---
 
 # Sentry Issue Investigation
 
-## Overview
+Fetch and debug Sentry exceptions with a repeatable CLI workflow. Supports URL-based issue investigation, time-window event search, log search, and issue listing.
 
-Fetch and debug a Sentry exception from a URL with a repeatable CLI workflow.
+**Auth:** Uses token from `~/.sentryclirc`. Run `sentry-cli login` if missing.
 
-**Core principle:** Use `sentry-cli` for auth/org/project discovery first, then fetch issue + event details. If your `sentry-cli` version has no `api` subcommand, use `curl` with the same auth token.
+**Execution path:** Commands are relative to this skill's directory. Run from `{baseDir}` or prefix commands with `{baseDir}/`.
 
-## When to Use
+## Quick Reference
 
-Use this skill when:
-- User gives a Sentry issue URL
-- You need stacktrace, request/job context, release, and tags
-- You need quick root-cause clues before changing code
+| Task | Command |
+|------|---------|
+| Get issue from URL | Parse URL, then `./scripts/fetch-issue.js <issue-id-or-url> --latest` |
+| Find errors on a date | `./scripts/search-events.js --org X --start 2025-12-23T15:00:00 --level error` |
+| List open issues | `./scripts/list-issues.js --org X --status unresolved` |
+| Get event details | `./scripts/fetch-event.js <event-id> --org X --project Y` |
+| Search logs | `./scripts/search-logs.js --org X --project Y "level:error"` |
 
-Do not use this skill for generic app debugging without a Sentry issue reference.
+---
 
-## URL Parsing
+## Workflow 1: Investigate a Sentry Issue URL
+
+### URL Parsing
 
 Given:
 `https://buildrtech.sentry.io/issues/7261708580/?environment=demo&project=4510025524707328`
@@ -31,66 +40,26 @@ Extract:
 - project id: `4510025524707328`
 - environment: `demo` (if present)
 
-## Workflow
+### Steps
 
-### 1) Verify CLI and auth
+1. **Verify auth:**
+   ```bash
+   sentry-cli info
+   ```
 
-```bash
-sentry-cli --version
-sentry-cli info
-sentry-cli organizations list
-sentry-cli projects list --org <org_slug>
-```
+2. **Fetch issue with latest event:**
+   ```bash
+   ./scripts/fetch-issue.js <issue-id-or-url> --latest
+   # Also accepts: https://sentry.io/organizations/myorg/issues/123/
+   # Also accepts: MYPROJ-123 --org myorg
+   ```
 
-Capture whether `sentry-cli` has an `api` command:
-```bash
-sentry-cli --help
-```
+3. **Drill into specific events if needed:**
+   ```bash
+   ./scripts/fetch-event.js <event-id> --org <org> --project <project> --breadcrumbs
+   ```
 
-### 2) Get high-level issue metadata
-
-If `sentry-cli` supports direct issue fetching in your version, use it.
-Otherwise use REST API with token from your Sentry CLI config.
-
-Token discovery pattern:
-```bash
-TOKEN=$(rg '^token=' ~/.sentryclirc | head -n1 | cut -d'=' -f2-)
-```
-
-Issue metadata:
-```bash
-curl -sS -H "Authorization: Bearer $TOKEN" \
-  "https://sentry.io/api/0/issues/<issue_id>/"
-```
-
-This gives title, culprit, level, firstSeen, lastSeen, count, release, and status.
-
-### 3) Get latest event for stacktrace + request context
-
-```bash
-curl -sS -H "Authorization: Bearer $TOKEN" \
-  "https://sentry.io/api/0/issues/<issue_id>/events/latest/?environment=<env>"
-```
-
-If env is unknown, omit the environment query.
-
-### 4) List all events for pattern analysis
-
-```bash
-curl -sS -H "Authorization: Bearer $TOKEN" \
-  "https://sentry.io/api/0/issues/<issue_id>/events/?environment=<env>"
-```
-
-Then inspect each event by ID:
-
-```bash
-curl -sS -H "Authorization: Bearer $TOKEN" \
-  "https://sentry.io/api/0/issues/<issue_id>/events/<event_id>/?environment=<env>"
-```
-
-Use this to compare users, branches, params, releases, and frequency.
-
-## What to Extract
+### What to Extract
 
 Always report:
 - Issue title/type/message
@@ -98,10 +67,10 @@ Always report:
 - First/last seen, count, status
 - Top in-app stack frames (file + line)
 - Request/job context (route, params, identifiers)
-- Environment, release, user info, request_id tags
-- Recurrence pattern (same path? same branch id? same commit type?)
+- Environment, release, user info, tags
+- Recurrence pattern
 
-## Debugging Standard (Root Cause First)
+### Root Cause Analysis
 
 Before proposing fixes:
 1. Confirm exact throw site from in-app frame
@@ -110,66 +79,107 @@ Before proposing fixes:
 4. Identify whether failure is expected business condition vs true system fault
 5. Propose fix at the boundary where error should be handled
 
-## Output Template
+---
 
-```markdown
-## Sentry Issue: <title>
+## Workflow 2: What went wrong at this time?
 
-- Issue ID: <id>
-- Env: <env>
-- Level: <level>
-- Status: <status>
-- First seen: <timestamp>
-- Last seen: <timestamp>
-- Occurrences: <count>
-
-### Error
-- Type: <exception class>
-- Message: <message>
-- Culprit: <culprit>
-
-### In-app stacktrace highlights
-- path/to/file.rb:123 in `method_name`
-- ...
-
-### Request/Job context
-- Route/URL: <...>
-- Key params: <...>
-- User: <...>
-- Release: <...>
-
-### Root cause hypothesis
-<why this fails based on evidence>
-
-### Recommended fix
-<where to handle and why>
-```
-
-## Common Pitfalls
-
-- Assuming `sentry-cli api` exists in all versions (it may not)
-- Using issue list commands and expecting full stacktrace output
-- Ignoring environment filter and mixing unrelated events
-- Proposing fixes before confirming throw site and call chain
-- Treating expected domain errors as 500s instead of handling paths
-
-## Quick Reference
+Find events around a specific timestamp:
 
 ```bash
-# Auth/context
-sentry-cli info
-sentry-cli organizations list
-sentry-cli projects list --org <org>
+# Find all events in a 2-hour window
+./scripts/search-events.js --org myorg --project backend \
+  --start 2025-12-23T15:00:00 --end 2025-12-23T17:00:00
 
-# Token from CLI config
+# Filter to just errors
+./scripts/search-events.js --org myorg --start 2025-12-23T15:00:00 \
+  --level error
+
+# Find a specific transaction type
+./scripts/search-events.js --org myorg --start 2025-12-23T15:00:00 \
+  --transaction process-incoming-email
+
+# Find by tag
+./scripts/search-events.js --org myorg --tag thread_id:th_abc123
+```
+
+**Time Range Options:**
+- `--period, -t <period>` — Relative time (24h, 7d, 14d)
+- `--start <datetime>` — ISO 8601 start time
+- `--end <datetime>` — ISO 8601 end time
+
+**Filter Options:**
+- `--org, -o <org>` — Organization slug (required)
+- `--project, -p <project>` — Project slug or ID
+- `--query, -q <query>` — Discover search query
+- `--transaction <name>` — Transaction name filter
+- `--tag <key:value>` — Tag filter (repeatable)
+- `--level <level>` — Level filter (error, warning, info)
+- `--limit, -n <n>` — Max results (default: 25, max: 100)
+
+---
+
+## Workflow 3: What errors have occurred recently?
+
+```bash
+# List unresolved errors from last 24 hours
+./scripts/list-issues.js --org myorg --status unresolved --level error --period 24h
+
+# Find high-frequency issues
+./scripts/list-issues.js --org myorg --query "times_seen:>50" --sort freq
+
+# Issues affecting users
+./scripts/list-issues.js --org myorg --query "is:unresolved has:user" --sort user
+```
+
+**Options:**
+- `--org, -o <org>` — Organization slug (required)
+- `--project, -p <project>` — Project slug (repeatable)
+- `--query, -q <query>` — Issue search query
+- `--status <status>` — unresolved, resolved, ignored
+- `--level <level>` — error, warning, info, fatal
+- `--period, -t <period>` — Time period (default: 14d)
+- `--sort <sort>` — date, new, priority, freq, user
+
+---
+
+## Workflow 4: Search Logs
+
+```bash
+./scripts/search-logs.js --org myorg --project backend "level:error"
+
+# Also accepts Sentry URLs directly
+./scripts/search-logs.js "https://myorg.sentry.io/explore/logs/?project=123&statsPeriod=7d"
+```
+
+**Query Syntax:**
+```
+level:error              Filter by level
+message:*timeout*        Search message text with wildcards
+trace:abc123             Filter by trace ID
+```
+
+---
+
+## Debugging Tips
+
+1. **Start broad, then narrow:** Use `search-events.js` with a time range first, then drill into specific events
+2. **Use breadcrumbs:** `fetch-event.js --breadcrumbs` shows the full history before an error
+3. **Look for patterns:** `list-issues.js --sort freq` finds frequently occurring problems
+4. **Correlate with tags:** Custom tags like `thread_id`, `user_id`, `request_id` help connect events
+5. **Check related events:** If you find one event, look for others with the same transaction or trace ID
+
+## Fallback: curl with token
+
+If the scripts fail, extract the token and use curl directly:
+
+```bash
 TOKEN=$(rg '^token=' ~/.sentryclirc | head -n1 | cut -d'=' -f2-)
 
-# Issue
-curl -sS -H "Authorization: Bearer $TOKEN" "https://sentry.io/api/0/issues/<issue_id>/"
+# Issue metadata
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  "https://sentry.io/api/0/issues/<issue_id>/"
 
 # Latest event
-curl -sS -H "Authorization: Bearer $TOKEN" "https://sentry.io/api/0/issues/<issue_id>/events/latest/?environment=<env>"
-
-# Event list
-curl -sS -H "Authorization: Bearer $TOKEN" "https://sentry.io/api/0/issues/<issue_id>/events/?environment=<env>"
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  "https://sentry.io/api/0/issues/<issue_id>/events/latest/"
 ```
