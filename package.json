@@ -1,9 +1,30 @@
 {
   "name": "buildr-dotagents",
   "version": "0.1.0",
-  "description": "Reusable skills for AI coding agents",
+  "description": "Reusable skills and extensions for AI coding agents",
   "keywords": ["pi-package"],
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:ts": "node --import tsx --test pi-extensions/handoff/index.test.ts"
+  },
   "pi": {
-    "skills": ["./skills"]
+    "skills": ["./skills"],
+    "extensions": ["./pi-extensions"]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "@sinclair/typebox": "*"
+  },
+  "devDependencies": {
+    "@mariozechner/pi-ai": "^0.65.0",
+    "@mariozechner/pi-coding-agent": "^0.65.0",
+    "@mariozechner/pi-tui": "^0.65.0",
+    "@sinclair/typebox": "^0.34.49",
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.0"
   }
 }

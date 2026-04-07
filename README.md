@@ -1,6 +1,6 @@
 # dotagents
 
-Skills for AI coding agents.
+Skills and Pi extensions for AI coding agents.
 
 ## Quick Start
 
@@ -8,12 +8,19 @@ Skills for AI coding agents.
 make install
 ```
 
+This builds and installs:
+- skills for Claude Code, OpenCode, Pi, and Codex
+- Pi subagents
+- Pi extensions
+
 ## Install Paths
 
-| Agent | Skills Path |
-|-------|-------------|
-| Claude Code | `~/.claude/skills/` |
-| OpenCode, Pi, Codex | `~/.agents/skills/` |
+| Agent | Resource | Path |
+|-------|----------|------|
+| Claude Code | Skills | `~/.claude/skills/` |
+| OpenCode, Pi, Codex | Skills | `~/.agents/skills/` |
+| Pi | Extensions | `~/.pi/agent/extensions/` |
+| Pi | Agents | `~/.pi/agent/agents/` |
 
 ## Super Power Skills
 
@@ -38,11 +45,22 @@ These methodology skills improve AI agent effectiveness:
 
 | Command | Description |
 |---------|-------------|
-| `make install` | Build and install skills for all agents |
-| `make build` | Build skills to `build/` without installing |
+| `make install` | Build and install skills, agents, and Pi extensions |
+| `make build` | Build skills, agents, and Pi extensions to `build/` |
+| `make typecheck` | Type-check Pi extensions |
 | `make install-skills` | Install skills only |
+| `make install-extensions` | Install Pi extensions only |
 | `make clean` | Remove all installed artifacts |
 | `make help` | Show all available commands |
+
+## Pi Extensions
+
+This repo now ships these first-class Pi extensions:
+- `pi-extensions/handoff/`
+- `pi-extensions/session-query/`
+
+Install path:
+- `~/.pi/agent/extensions/`
 
 ## Adding Skills
 
@@ -50,7 +68,14 @@ These methodology skills improve AI agent effectiveness:
 2. Add supporting files to the same directory
 3. Run `make install`
 
-See [Agent Skills specification](https://agentskills.io/specification.md) for format details.
+## Adding Pi Extensions
+
+1. Create `pi-extensions/<extension-name>/index.ts`
+2. Add any supporting files under that directory
+3. Run `make install-extensions`
+4. Run `pnpm typecheck`
+
+See [Agent Skills specification](https://agentskills.io/specification.md) for skill format details.
 
 ## Requirements
 

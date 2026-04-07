@@ -1,5 +1,5 @@
 # dotagents Makefile
-# Installs skills for AI coding agents
+# Installs skills, agents, and Pi extensions for AI coding agents
 #
 # Run `make install` to build and install.
 # Requires Python 3.11+.
@@ -7,24 +7,27 @@
 PYTHON := python3
 BUILD_SCRIPT := $(CURDIR)/scripts/build.py
 
-.PHONY: all install install-skills build clean help check-python
+.PHONY: all install install-skills install-extensions build typecheck clean help check-python
 
 all: help
 
 help:
-	@echo "dotagents - Skills Installer"
+	@echo "dotagents - Skills and Extensions Installer"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make install            Build and install skills"
+	@echo "  make install            Build and install skills, agents, and Pi extensions"
 	@echo "  make install-skills     Install skills only"
-	@echo "  make build              Build skills (without installing)"
-	@echo "  make clean              Remove all installed skills and build artifacts"
+	@echo "  make install-extensions Install Pi extensions only"
+	@echo "  make build              Build skills, agents, and Pi extensions"
+	@echo "  make typecheck          Type-check Pi extensions"
+	@echo "  make clean              Remove installed artifacts and build artifacts"
 	@echo "  make help               Show this help message"
 	@echo ""
 	@echo "Install paths:"
 	@echo "  Claude Code:           ~/.claude/skills/"
 	@echo "  OpenCode/Pi/Codex:     ~/.agents/skills/"
 	@echo "  Pi Subagents:          ~/.pi/agent/agents/"
+	@echo "  Pi Extensions:         ~/.pi/agent/extensions/"
 
 check-python:
 	@$(PYTHON) -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" 2>/dev/null || \
@@ -32,13 +35,19 @@ check-python:
 
 install: check-python
 	@$(PYTHON) $(BUILD_SCRIPT) install
-	@echo "All skills installed"
+	@echo "All skills, agents, and Pi extensions installed"
 
 build: check-python
 	@$(PYTHON) $(BUILD_SCRIPT) build
 
+typecheck:
+	@pnpm typecheck
+
 install-skills: check-python
 	@$(PYTHON) $(BUILD_SCRIPT) install-skills
+
+install-extensions: check-python
+	@$(PYTHON) $(BUILD_SCRIPT) install-extensions
 
 clean: check-python
 	@$(PYTHON) $(BUILD_SCRIPT) clean
