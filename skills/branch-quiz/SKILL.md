@@ -1,6 +1,9 @@
 ---
 name: branch-quiz
 description: "Use when the user wants to verify their understanding of a branch's code changes by being quizzed on runtime behavior, assumptions, failure points, and edge cases instead of just reading diffs"
+disable-model-invocation: true
+metadata:
+  category: superpowers
 ---
 
 ## Overview
