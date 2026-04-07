@@ -67,13 +67,15 @@ Each agent gets:
 
 ### 3. Dispatch in Parallel
 
-```typescript
-// In Claude Code / AI environment
-Task("Fix agent-tool-abort.test.ts failures")
-Task("Fix batch-completion-behavior.test.ts failures")
-Task("Fix tool-approval-race-conditions.test.ts failures")
-// All three run concurrently
+Use your subagent extension's dispatch command (in this repo, use `/run <agent> "<task>"`).
+
+```text
+/run debugger "Fix agent-tool-abort.test.ts failures"
+/run debugger "Fix batch-completion-behavior.test.ts failures"
+/run debugger "Fix tool-approval-race-conditions.test.ts failures"
 ```
+
+If your extension supports a true parallel mode, submit these as one parallel batch. Otherwise, dispatch the three focused runs back-to-back.
 
 ### 4. Review and Integrate
 
@@ -144,10 +146,10 @@ Return: Summary of what you found and what you fixed.
 **Decision:** Independent domains - abort logic separate from batch completion separate from race conditions
 
 **Dispatch:**
-```
-Agent 1 → Fix agent-tool-abort.test.ts
-Agent 2 → Fix batch-completion-behavior.test.ts
-Agent 3 → Fix tool-approval-race-conditions.test.ts
+```text
+/run debugger "Fix agent-tool-abort.test.ts failures"
+/run debugger "Fix batch-completion-behavior.test.ts failures"
+/run debugger "Fix tool-approval-race-conditions.test.ts failures"
 ```
 
 **Results:**
