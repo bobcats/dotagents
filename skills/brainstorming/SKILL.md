@@ -29,7 +29,7 @@ You MUST complete these items in order:
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
 6. **Write design doc** — save to `docs/design/YYYY-MM-DD-<topic>.md` and commit
-7. **Spec review loop** — dispatch spec-document-reviewer subagent with precisely crafted review context (never your session history); fix issues and re-dispatch until approved (max 3 iterations, then surface to human)
+7. **Spec review loop** — dispatch document-reviewer subagent with precisely crafted review context (never your session history); fix issues and re-dispatch until approved (max 3 iterations, then surface to human)
 8. **User reviews written spec** — ask user to review the design file before proceeding
 9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
 
@@ -143,7 +143,7 @@ For topics that involve visual questions (UI mockups, layouts, diagrams), offer 
 
 After writing the spec document:
 
-1. Dispatch spec-document-reviewer subagent (see spec-document-reviewer-prompt.md)
+1. Dispatch document-reviewer subagent
 2. If Issues Found: fix, re-dispatch, repeat until Approved
 3. If loop exceeds 3 iterations, surface to human for guidance
 
