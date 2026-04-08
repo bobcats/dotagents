@@ -9,7 +9,7 @@ metadata:
 
 ## Overview
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+Write comprehensive implementation plans for an engineer with little codebase context. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, and how to test it. Break the work into bite-sized tasks. Favor DRY, YAGNI, TDD, and frequent commit checkpoints.
 
 Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
 
@@ -22,6 +22,8 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
 
 ## File Structure
+
+Before defining tasks, confirm the architecture and local patterns the plan depends on. If the work touches unfamiliar frameworks, libraries, or protocols, check official docs/specs first. A good plan reflects both the ideal design and the constraints of the existing codebase.
 
 Before defining tasks, map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
 

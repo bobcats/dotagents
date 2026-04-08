@@ -68,15 +68,7 @@ digraph brainstorming {
 }
 ```
 
-**The terminal state is invoking writing-plans.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is writing-plans.
-
-<HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
-</HARD-GATE>
-
-## Anti-Pattern: "This Is Too Simple To Need A Design"
-
-Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
+After the design is approved and the written spec passes review, hand off to `writing-plans`. Do NOT invoke frontend-design, mcp-builder, or any other implementation skill from this stage.
 
 ## Upstream
 
@@ -90,6 +82,7 @@ This skill is the design stage. Work may arrive here from:
 **Understanding the idea:**
 
 - Check out the current project state first (files, docs, recent commits)
+- In unfamiliar areas, understand the relevant architecture before proposing changes. Read the local code first, then check official docs, specs, or primary references for the framework, library, or protocol involved. Recommend an approach by comparing external best practice with the codebase's actual constraints and patterns.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
 - If the project is too large for a single spec, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own spec → plan → implementation cycle.
 - For appropriately-scoped projects, ask questions one at a time to refine the idea
