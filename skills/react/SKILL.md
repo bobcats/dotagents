@@ -105,6 +105,13 @@ When resolving React + TS errors:
 
 Prefer explicit prop contracts over ad-hoc inline object shapes for reusable components.
 
+## 5. Component Design
+
+- Prefer small, focused, reusable components over large multi-purpose components.
+- Prefer composition and clear data flow over duplicated state and prop soup.
+- Reuse existing design-system primitives and styling patterns before inventing new ones.
+- If the codebase is doing something unusual and the correct React approach is unclear, check current official React guidance before changing direction.
+
 ## Verification checklist
 
 Before adding `useEffect`, verify:

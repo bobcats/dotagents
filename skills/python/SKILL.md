@@ -9,6 +9,12 @@ metadata:
 
 Apply these patterns when writing, reviewing, or refactoring Python code.
 
+## Environment and Packaging
+
+- Prefer `uv` with `pyproject.toml` for Python project setup and dependency management.
+- Prefer `uv sync` over ad-hoc virtualenv or `pip` workflows.
+- Do not introduce Poetry, `requirements.txt`, or manual `pip` venv setup unless the project already uses them or the user asks for them.
+
 ## Detection Patterns
 
 ### Dead Code
@@ -63,7 +69,9 @@ rg "@staticmethod" --type py              # static-only class smell
 rg "def __new__\(" --type py              # dunder abuse smell
 ```
 
-## Modern Type Hints (3.12+)
+## Modern Type Hints
+
+Use 3.12+ type-parameter syntax only when the project's runtime and tooling support it. Otherwise use `TypeVar` and other compatible forms.
 
 ```python
 # Native type parameter syntax (3.12+) — no TypeVar import needed:
@@ -195,6 +203,10 @@ async with aiohttp.ClientSession() as session:
     async with session.get(url) as resp:
         data = await resp.json()
 ```
+
+## Type Safety
+
+- Prefer explicit typed models over loose `dict[str, Any]` data passing.
 
 ## Design Principles
 

@@ -9,6 +9,24 @@ metadata:
 
 Apply these patterns when writing, reviewing, or refactoring Rust code.
 
+## House Guidance
+
+- Avoid `unwrap`, `expect`, and panics in non-test code. Return or propagate errors instead.
+- Prefer `crate::` over `super::` in non-test code. `super::` is fine in tests.
+- Avoid `pub use` unless you are intentionally re-exporting a dependency or public API surface.
+- Prefer explicit context passing over global shared state.
+- Prefer strong domain types over raw strings when the domain is closed or validated.
+
+## Verification Workflow
+
+For Rust changes, run:
+
+1. `cargo fmt`
+2. `cargo clippy --all --benches --tests --examples --all-features`
+3. the relevant `cargo test` commands
+
+Avoid `cargo fmt --all` unless workspace-wide formatting is intentional.
+
 ## Detection Patterns
 
 ### Dead Code
