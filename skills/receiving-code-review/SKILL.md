@@ -23,7 +23,8 @@ WHEN receiving code review feedback:
 3. VERIFY: Check against codebase reality
 4. EVALUATE: Technically sound for THIS codebase?
 5. RESPOND: Technical acknowledgment or reasoned pushback
-6. IMPLEMENT: One item at a time, test each
+6. CONFIRM MODE: Ask analysis-only vs implement-now unless explicitly instructed
+7. IMPLEMENT: One item at a time, test each (only after confirmation)
 ```
 
 ## Forbidden Responses
@@ -37,7 +38,7 @@ WHEN receiving code review feedback:
 - Restate the technical requirement
 - Ask clarifying questions
 - Push back with technical reasoning if wrong
-- Just start working (actions > words)
+- Confirm mode first when intent is ambiguous (analysis-only vs implement-now)
 
 ## Handling Unclear Feedback
 
@@ -61,10 +62,10 @@ You understand 1,2,3,6. Unclear on 4,5.
 ## Source-Specific Handling
 
 ### From your human partner
-- **Trusted** - implement after understanding
+- **Trusted** - implement after understanding when explicitly requested
 - **Still ask** if scope unclear
 - **No performative agreement**
-- **Skip to action** or technical acknowledgment
+- **If intent is ambiguous**, ask whether they want evaluation-only or implementation
 
 ### From External Reviewers
 ```
@@ -114,11 +115,15 @@ FOR multi-item feedback:
 
 ## What Happens Next
 
-After understanding and verifying all feedback items, for changes you choose to make:
+After understanding and verifying all feedback items:
 
-- **Quick fix** (obvious, < 5 min): apply directly with `test-driven-development` + `verification-before-completion`
-- **Needs design exploration**: use `brainstorming` to explore the approach
-- **Clear scope, multi-step**: create a plan with `writing-plans`, execute with `executing-plans`
+- **If implementation was explicitly requested**:
+  - **Quick fix** (obvious, < 5 min): apply directly with `test-driven-development` + `verification-before-completion`
+  - **Needs design exploration**: use `brainstorming` to explore the approach
+  - **Clear scope, multi-step**: create a plan with `writing-plans`, execute with `executing-plans`
+- **If implementation was not explicitly requested**:
+  - Return technical triage, open questions, and recommended order of operations
+  - Wait for approval before touching files
 
 ## When To Push Back
 
