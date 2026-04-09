@@ -18,13 +18,17 @@ Load plan, review critically, execute all tasks, report when complete.
 ### Step 1: Load and Review Plan
 1. Read plan file
 2. Review critically - identify any questions or concerns about the plan
-3. If concerns: Raise them with your human partner before starting
-4. If no concerns: Proceed to execution
+3. Check plan structure before execution:
+   - `- [ ]` items are executable work
+   - sections like `## Follow-ups`, `## Deferred Ideas`, and `## Out of Scope` are non-executable context
+   - if a checkbox item is labeled optional/conditional (`Optional`, `Maybe`, `If time`, `If desired`, `Stretch`, etc.), treat that as a plan bug and stop for clarification
+4. If concerns: Raise them with your human partner before starting
+5. If no concerns: Proceed to execution
 
 ### Step 2: Execute Tasks
 
 Work through `- [ ]` items **one at a time, sequentially**:
-1. Pick the next unchecked `- [ ]` item
+1. Pick the next unchecked `- [ ]` item from the executable portion of the plan
 2. Mark as in_progress
 3. Follow each step exactly (plan has bite-sized steps)
 4. Run verifications as specified
@@ -49,6 +53,7 @@ After all tasks complete and verified:
 **STOP executing immediately when:**
 - Hit a blocker (missing dependency, test fails, instruction unclear)
 - Plan has critical gaps preventing progress on the current task
+- Plan mixes optional/conditional language into executable checkbox items
 - You don't understand an instruction
 - Verification fails repeatedly
 
@@ -65,6 +70,9 @@ After all tasks complete and verified:
 ## Remember
 - Review plan critically first
 - Follow plan steps exactly
+- Only execute required checkbox items
+- Treat follow-up/deferred/out-of-scope sections as non-executable unless the human explicitly promotes them into a new plan
+- If optional language appears inside executable checkbox items, stop and get the plan fixed before continuing
 - Don't skip verifications
 - Reference skills when plan says to
 - Stop when blocked, don't guess

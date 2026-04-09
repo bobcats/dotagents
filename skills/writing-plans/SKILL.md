@@ -63,7 +63,18 @@ This structure informs the task decomposition. Each task should produce self-con
 
 ## Task Structure
 
-Every task and step MUST use `- [ ]` checkbox syntax so progress can be tracked by checking items off.
+Every executable task and step MUST use `- [ ]` checkbox syntax so progress can be tracked by checking items off.
+
+## No Optional Checkbox Tasks
+
+Plans consumed by `executing-plans` must have a single unambiguous execution path.
+
+- Do **not** write optional, stretch, nice-to-have, or "if desired" tasks as `- [ ]` checkboxes.
+- Do **not** label executable tasks with words like `Optional`, `Maybe`, `If time`, `Follow-up`, or `Stretch`.
+- If something needs a decision, make that decision itself the checkbox task (for example: `- [ ] Decide whether to pursue X`).
+- Put deferred ideas in a separate non-executable section such as `## Follow-ups`, `## Deferred Ideas`, or `## Out of Scope` using plain bullets, not checkboxes.
+
+If `executing-plans` can skip it without failing the plan, it does not belong in the executable checkbox list.
 
 ````markdown
 ### Task N: [Component Name]
@@ -112,6 +123,8 @@ git commit -m "feat: add specific feature"
 - Exact commands with expected output
 - Reference relevant skills by name in backticks
 - DRY, YAGNI, TDD, frequent commits
+- Executable checkboxes are for required work only
+- Put optional/deferred work in non-checkbox sections (`## Follow-ups`, `## Deferred Ideas`, `## Out of Scope`)
 - If the session uses a task tracker (beads/Linear/etc.), encode TDD as separate tasks (RED task blocks GREEN task) rather than prose-only steps
 - Include explicit commit checkpoints tied to task closure (do not defer all commits to the end)
 
