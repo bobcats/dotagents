@@ -51,22 +51,23 @@ git commit -m "docs(plan): add skill-by-skill PR rollout plan"
 - Create: `skills/linear-cli/SKILL.md` (via cherry-pick)
 - Test: repository build output via `make build`
 
-- [ ] **Step 1: Create PR branch for build/frontmatter baseline**
+- [x] **Step 1: Create PR branch for build/frontmatter baseline**
 
 Run: `git checkout -b pr/baseline-build-overrides upstream/main`
 Expected: branch created from `upstream/main`.
 
-- [ ] **Step 2: Cherry-pick build baseline commit**
+- [x] **Step 2: Cherry-pick build baseline commit**
 
 Run: `git cherry-pick 4f7c46f`
 Expected: cherry-pick applies cleanly.
 
-- [ ] **Step 3: Verify build still works**
+- [x] **Step 3: Verify build still works**
 
 Run: `make build`
 Expected: build succeeds.
 
-- [ ] **Step 4: Push and open PR for build baseline**
+- [x] **Step 4: Push and open PR for build baseline**
+  - PR: https://github.com/buildrtech/dotagents/pull/14
 
 Run:
 ```bash
@@ -75,17 +76,18 @@ gh pr create --base main --head pr/baseline-build-overrides --title "feat(build)
 ```
 Expected: branch pushed and PR URL returned.
 
-- [ ] **Step 5: Create PR branch for linear skill replacement**
+- [x] **Step 5: Create PR branch for linear skill replacement**
 
 Run: `git checkout -b pr/skill-linear-cli upstream/main`
 Expected: branch created from `upstream/main`.
 
-- [ ] **Step 6: Cherry-pick linear replacement commit**
+- [x] **Step 6: Cherry-pick linear replacement commit**
 
 Run: `git cherry-pick f96a8d6`
 Expected: cherry-pick applies cleanly.
 
-- [ ] **Step 7: Verify build and push/open PR**
+- [x] **Step 7: Verify build and push/open PR**
+  - PR: https://github.com/buildrtech/dotagents/pull/15
 
 Run:
 ```bash
@@ -96,6 +98,7 @@ gh pr create --base main --head pr/skill-linear-cli --title "feat(skills): repla
 Expected: build succeeds and PR URL returned.
 
 - [ ] **Step 8: Create PR branch for mcporter removal**
+  - Deferred by user for now (intentionally skipped in this pass).
 
 Run: `git checkout -b pr/skill-remove-mcporter upstream/main`
 Expected: branch created from `upstream/main`.
@@ -141,39 +144,42 @@ Expected: each run ends with a PR URL and clean branch state.
 
 - [ ] **Step 2: Complete all single-commit skill PRs in this manifest**
 
-- [ ] `buildkite-cli` — `1a32e6a` — `feat(skills): port buildkite-cli skill from pi-migration`
-- [ ] `document-writing` — `a7a7da5` — `feat(skills): port document-writing skill from pi-migration`
-- [ ] `creating-pr` — `2377d8e` — `feat(skills): port creating-pr skill from pi-migration`
-- [ ] `frontend-design` — `0e63d40` — `feat(skills): port frontend-design skill from pi-migration`
-- [ ] `go` — `93fa9ad` — `feat(skills): port go skill from pi-migration`
-- [ ] `github` — `ad929a9` — `feat(skills): port github skill from pi-migration`
-- [ ] `issue-writing` — `e676ca8` — `feat(skills): port issue-writing skill from pi-migration`
-- [ ] `typescript` — `5d52b64` — `feat(skills): port typescript skill from pi-migration`
-- [ ] `mermaid` — `ef0c817` — `feat(skills): port mermaid skill from pi-migration`
-- [ ] `notify` — `c04bb1d` — `feat(skills): port notify skill from pi-migration`
-- [ ] `postgres` — `704c510` — `feat(skills): port postgres skill from pi-migration`
-- [ ] `python` — `d0d088c` — `feat(skills): port python skill from pi-migration`
-- [ ] `qa-brainstorm` — `d15a8b5` — `feat(skills): port qa-brainstorm skill from pi-migration`
-- [ ] `qa-execute` — `5d088f2` — `feat(skills): port qa-execute skill from pi-migration`
-- [ ] `qa-plan` — `65e5e28` — `feat(skills): port qa-plan skill from pi-migration`
-- [ ] `rails` — `6dbd377` — `feat(skills): port rails skill from pi-migration`
-- [ ] `react` — `722f55e` — `feat(skills): port react skill from pi-migration`
-- [ ] `playwright-cli` — `ec0cd1a` — `feat(skills): port playwright-cli skill from pi-migration`
-- [ ] `refactoring` — `0397bb4` — `feat(skills): port refactoring skill from pi-migration`
-- [ ] `remove-slop` — `9ad26e1` — `feat(skills): port remove-slop skill from pi-migration`
-- [ ] `ruby` — `5fe832c` — `feat(skills): port ruby skill from pi-migration`
-- [ ] `rust` — `9a6bf83` — `feat(skills): port rust skill from pi-migration`
-- [ ] `sorbet` — `6ec2012` — `feat(skills): port sorbet skill from pi-migration`
-- [ ] `sql` — `62fb194` — `feat(skills): port sql skill from pi-migration`
-- [ ] `summarize` — `bd0bfa6` — `feat(skills): port summarize skill from pi-migration`
-- [ ] `tmux` — `4f3c215` — `feat(skills): port tmux skill from pi-migration`
-- [ ] `ast-grep` — `a64cec9` — `feat(skills): update ast-grep skill from pi-migration`
-- [ ] `branch-quiz` — `9414ed6` — `feat(skills): update branch-quiz skill from pi-migration`
-- [ ] `fetch-ci-build` — `b2b0ae5` — `feat(skills): update fetch-ci-build skill from pi-migration`
-- [ ] `semantic-commit` — `33a0b36` — `feat(skills): update semantic-commit skill from pi-migration`
-- [ ] `sentry-issue` — `4c2da1f` — `feat(skills): update sentry-issue skill and helper scripts from pi-migration`
-- [ ] `systematic-debugging` — `79995d2` — `feat(skills): update systematic-debugging skill from pi-migration`
-- [ ] `verification-before-completion` — `ef02f00` — `feat(skills): update verification-before-completion skill from pi-migration`
+- [x] `buildkite-cli` — source commit `1a32e6a`
+  - PR: https://github.com/buildrtech/dotagents/pull/16
+- [x] `document-writing` — source commit `a7a7da5`
+  - PR: https://github.com/buildrtech/dotagents/pull/17
+- [x] `creating-pr` — source commit `2377d8e`
+  - PR: https://github.com/buildrtech/dotagents/pull/18
+- [ ] `frontend-design` — source commit `0e63d40`
+- [ ] `go` — source commit `93fa9ad`
+- [ ] `github` — source commit `ad929a9`
+- [ ] `issue-writing` — source commit `e676ca8`
+- [ ] `typescript` — source commit `5d52b64`
+- [ ] `mermaid` — source commit `ef0c817`
+- [ ] `notify` — source commit `c04bb1d`
+- [ ] `postgres` — source commit `704c510`
+- [ ] `python` — source commit `d0d088c`
+- [ ] `qa-brainstorm` — source commit `d15a8b5`
+- [ ] `qa-execute` — source commit `5d088f2`
+- [ ] `qa-plan` — source commit `65e5e28`
+- [ ] `rails` — source commit `6dbd377`
+- [ ] `react` — source commit `722f55e`
+- [ ] `playwright-cli` — source commit `ec0cd1a`
+- [ ] `refactoring` — source commit `0397bb4`
+- [ ] `remove-slop` — source commit `9ad26e1`
+- [ ] `ruby` — source commit `5fe832c`
+- [ ] `rust` — source commit `9a6bf83`
+- [ ] `sorbet` — source commit `6ec2012`
+- [ ] `sql` — source commit `62fb194`
+- [ ] `summarize` — source commit `bd0bfa6`
+- [ ] `tmux` — source commit `4f3c215`
+- [ ] `ast-grep` — source commit `a64cec9`
+- [ ] `branch-quiz` — source commit `9414ed6`
+- [ ] `fetch-ci-build` — source commit `b2b0ae5`
+- [ ] `semantic-commit` — source commit `33a0b36`
+- [ ] `sentry-issue` — source commit `4c2da1f`
+- [ ] `systematic-debugging` — source commit `79995d2`
+- [ ] `verification-before-completion` — source commit `ef02f00`
 
 - [ ] **Step 3: Commit progress checkpoint (single-commit manifest complete)**
 
@@ -196,7 +202,7 @@ git checkout -b pr/skill-brave-search upstream/main
 git cherry-pick 786eb42 accc595
 make build
 git push -u origin pr/skill-brave-search
-gh pr create --base main --head pr/skill-brave-search --title "feat(skills): port and merge brave-search skill" --body "Ports brave-search skill and follow-up merge adjustments from pi-migration."
+gh pr create --base main --head pr/skill-brave-search --title "feat(skills): add brave-search skill" --body "Adds a dedicated brave-search skill with merged follow-up adjustments and usage guidance."
 ```
 Expected: PR URL returned.
 
@@ -208,7 +214,7 @@ git checkout -b pr/skill-receiving-code-review upstream/main
 git cherry-pick 69d559e 78edf0b
 make build
 git push -u origin pr/skill-receiving-code-review
-gh pr create --base main --head pr/skill-receiving-code-review --title "docs(skills): strengthen receiving-code-review execution gates" --body "Includes pi-migration update plus explicit analyze-vs-implement confirmation guidance."
+gh pr create --base main --head pr/skill-receiving-code-review --title "docs(skills): strengthen receiving-code-review execution gates" --body "Adds explicit analyze-vs-implement confirmation guidance and tighter review-response workflow."
 ```
 Expected: PR URL returned.
 
@@ -285,6 +291,4 @@ git commit -m "docs(plan): record skill-by-skill PR rollout status"
 
 ## Follow-ups
 
-- After baseline and skill PRs merge, decide whether to open a separate docs-only PR for migration planning artifacts:
-  - `docs/plans/2026-04-06-pi-migration-selective-port.md`
-  - `docs/plans/2026-04-07-full-skill-parity-from-pi-migration.md`
+- After baseline and skill PRs merge, decide whether to open a separate docs-only PR for older planning artifacts currently in `docs/plans/`.
