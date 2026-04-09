@@ -14,7 +14,7 @@ Fetch CI build results, diagnose failures, extract actionable error information,
 | Provider | Detection | Tool |
 |----------|-----------|------|
 | GitHub Actions | `.github/workflows/` or `github.com` URL | `gh` CLI |
-| Buildkite | `.buildkite/` or `buildkite.com` URL | Python script |
+| Buildkite | `.buildkite/` or `buildkite.com` URL | `bk` CLI |
 | CircleCI | `.circleci/` or `circleci.com` URL | Python script |
 
 ## Auto-Detection
@@ -96,6 +96,8 @@ Read the appropriate reference file for provider-specific commands:
 
 Use the provider-specific commands to fetch build information and failures.
 
+For Buildkite, prefer `bk` CLI as the primary path (not the legacy Python helper script).
+
 ### 4. For Each Failure
 
 Read the relevant source file to understand context:
@@ -138,6 +140,7 @@ If the failure requires deeper investigation (e.g., unclear root cause, flaky te
 | Can't detect provider | Specify provider explicitly or provide CI URL |
 | Missing credentials | Check provider reference for required env vars/auth |
 | Build still running | Wait for completion or check partial results |
+| Buildkite path still using old script | Use `references/buildkite.md` `bk` workflow first; only fall back to API/script if `bk` is unavailable |
 | Rate limiting | Wait and retry |
 
 ## Integration with Other Skills

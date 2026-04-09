@@ -1,117 +1,96 @@
-# Buildkite Reference
+# Buildkite Reference (`bk` CLI first)
+
+Use `bk` as the primary way to fetch and diagnose Buildkite failures.
 
 ## Prerequisites
 
-Environment variables must be set:
-- `BUILDKITE_API_TOKEN` - Buildkite API token with read access
-- `BUILDKITE_ORGANIZATION_SLUG` - Organization slug (e.g., `myorg`)
+- `bk` installed and authenticated
+- organization selected (`bk use <org>`)
+
+Quick auth check:
+
+```bash
+bk version
+bk whoami
+```
 
 ## Quick Reference
 
-**Fetch failures for current branch:**
+### Fetch latest failed build for current branch
+
 ```bash
-uv run {baseDir}/scripts/fetch_buildkite_failures.py
+pipeline=my-pipeline
+branch=$(git branch --show-current)
+
+bk build list --pipeline "$pipeline" --state failed --branch "$branch" --limit 1 --output json
 ```
 
-**Fetch specific build:**
+### Fetch a specific build
+
 ```bash
-uv run {baseDir}/scripts/fetch_buildkite_failures.py --build 1723
+pipeline=my-pipeline
+build=1723
+bk build view "$build" --pipeline "$pipeline" --output json
 ```
 
-**Fetch different branch:**
+### Fetch failed jobs for a build
+
 ```bash
-uv run {baseDir}/scripts/fetch_buildkite_failures.py --branch main
+pipeline=my-pipeline
+build=1723
+
+bk api "/pipelines/$pipeline/builds/$build/jobs" \
+  | jq '[.[] | select(.state == "failed") | {id, name, web_url, exit_status}]'
 ```
 
-**Fetch from specific pipeline:**
+### Fetch logs for a failed job
+
 ```bash
-uv run {baseDir}/scripts/fetch_buildkite_failures.py --pipeline my-pipeline
-```
+pipeline=my-pipeline
+build=1723
+job=<job-id>
 
-## Script Output
-
-The script outputs JSON with:
-- Build info (number, branch, state, URL)
-- Failed jobs with extracted errors
-- Summary counts by error type
-
-Example output:
-```json
-{
-  "build": {
-    "number": 1234,
-    "branch": "feature-branch",
-    "state": "failed",
-    "commit": "abc123",
-    "web_url": "https://buildkite.com/org/pipeline/builds/1234",
-    "message": "Fix the thing"
-  },
-  "failures": [
-    {
-      "job_name": "rspec tests",
-      "job_id": "job-uuid",
-      "web_url": "https://buildkite.com/...",
-      "errors": [
-        {
-          "test_name": "UserTest#test_validation",
-          "file": "test/models/user_test.rb",
-          "line": 42,
-          "message": "Expected true, got false",
-          "type": "test_failure"
-        }
-      ]
-    }
-  ],
-  "summary": {
-    "total_failed_jobs": 1,
-    "test_failures": 1,
-    "lint_errors": 0
-  }
-}
+bk job log "$job" --pipeline "$pipeline" --build-number "$build" --no-timestamps
 ```
 
 ## URL Patterns
 
-Buildkite URLs follow this pattern:
+Buildkite URLs:
+
 ```
 https://buildkite.com/<org>/<pipeline>/builds/<build-number>
 https://buildkite.com/<org>/<pipeline>/builds/<build-number>#<job-id>
 ```
 
-Extract build number from URL:
+Extract pipeline + build from URL:
+
 ```bash
-# From: https://buildkite.com/myorg/app/builds/1234
-uv run {baseDir}/scripts/fetch_buildkite_failures.py --build 1234
+url='https://buildkite.com/myorg/app/builds/1234'
+pipeline=$(printf '%s' "$url" | sed -E 's#https://buildkite.com/[^/]+/([^/]+)/builds/.*#\1#')
+build=$(printf '%s' "$url" | sed -E 's#.*builds/([0-9]+).*#\1#')
 ```
 
-## Error Types Detected
+## Failure Extraction Tips
 
-The script parses logs and extracts:
+After pulling job logs, extract actionable failures first:
 
-| Type | Detection Pattern |
-|------|-------------------|
-| `test_failure` | Minitest/RSpec failure output |
-| `rubocop` | Rubocop violation format |
-| `lint` | ESLint/Biome output |
-| `typescript` | TSC error format |
-| `pytest` | pytest FAILED lines |
-| `ruff` | Ruff linting output |
-| `go_test` | Go test failures |
-| `go_compile` | Go compilation errors |
-| `docker` | Docker errors |
-| `permission` | Permission denied errors |
-
-## API Direct Access
-
-If you need to access the API directly:
-
-**List builds for a pipeline:**
 ```bash
-curl -s -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
-  "https://api.buildkite.com/v2/organizations/$BUILDKITE_ORGANIZATION_SLUG/pipelines/app/builds?branch=$(git branch --show-current)&per_page=1"
+rg -n "FAIL|FAILED|Error:|AssertionError|TypeError|SyntaxError|undefined method|cannot find" build.log
 ```
 
-**Get specific build:**
+Prioritize:
+- failing test + file + line
+- compiler/linter/type-check errors
+- first concrete root error (skip cascaded noise)
+
+## Fallback Path (if `bk` is unavailable)
+
+If `bk` cannot be used, fall back to API calls with:
+- `BUILDKITE_API_TOKEN`
+- `BUILDKITE_ORGANIZATION_SLUG`
+
+Example:
+
 ```bash
 curl -s -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
   "https://api.buildkite.com/v2/organizations/$BUILDKITE_ORGANIZATION_SLUG/pipelines/app/builds/1234"
@@ -120,9 +99,9 @@ curl -s -H "Authorization: Bearer $BUILDKITE_API_TOKEN" \
 ## Troubleshooting
 
 | Issue | Solution |
-|-------|----------|
-| "BUILDKITE_API_TOKEN not set" | Export the environment variable |
-| "BUILDKITE_ORGANIZATION_SLUG not set" | Export the environment variable |
-| "No builds found" | Check branch name, pipeline slug |
-| "Invalid token" | Regenerate token in Buildkite settings |
-| Rate limiting | Wait and retry (API limit: 200 req/min) |
+|------|----------|
+| `bk` not installed | Install Buildkite CLI, then re-run |
+| Not authenticated | Run `bk configure add` then `bk use <org>` |
+| "No builds found" | Check pipeline slug, branch, and selected org |
+| Build still running | Use `bk build watch <build> --pipeline <pipeline>` |
+| API rate limiting | Wait and retry |
