@@ -6,7 +6,7 @@
   "packageManager": "pnpm@10.0.0",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test:ts": "node --import tsx --test pi-extensions/handoff/index.test.ts"
+    "test:ts": "node --import tsx --test pi-extensions/handoff/index.test.ts pi-extensions/openai-fast/config.test.ts pi-extensions/openai-fast/index.test.ts"
   },
   "pi": {
     "skills": ["./skills"],

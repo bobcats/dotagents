@@ -57,7 +57,10 @@ These methodology skills improve AI agent effectiveness:
 
 This repo now ships these first-class Pi extensions:
 - `pi-extensions/handoff/`
+- `pi-extensions/openai-fast/`
 - `pi-extensions/session-query/`
+
+`openai-fast` adds `/fast` for OpenAI priority service-tier requests on configured models.
 
 Install path:
 - `~/.pi/agent/extensions/`
@@ -74,6 +77,7 @@ Install path:
 2. Add any supporting files under that directory
 3. Run `make install-extensions`
 4. Run `pnpm typecheck`
+5. Run `pnpm test:ts` when the extension has non-trivial behavior, as `openai-fast` does
 
 See [Agent Skills specification](https://agentskills.io/specification.md) for skill format details.
 
