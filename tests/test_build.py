@@ -1,14 +1,28 @@
-import importlib
+import importlib.util
 import json
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 
+ROOT = Path(__file__).resolve().parents[1]
+BUILD_SCRIPT = ROOT / "scripts" / "build.py"
+
+
+def load_build_module():
+    spec = importlib.util.spec_from_file_location("dotagents_build_test_build", BUILD_SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules["dotagents_build_test_build"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 class BuildSkillsTests(unittest.TestCase):
     def setUp(self):
-        self.build = importlib.import_module("scripts.build")
+        self.build = load_build_module()
         self.original_build_dir = self.build.BUILD_DIR
         self.original_install_paths = dict(self.build.INSTALL_PATHS)
         self.original_home = self.build.HOME
@@ -134,7 +148,7 @@ class BuildSkillsTests(unittest.TestCase):
 
 class BuildExtensionsTests(unittest.TestCase):
     def setUp(self):
-        self.build = importlib.import_module("scripts.build")
+        self.build = load_build_module()
         self.original_pi_extensions_dir = getattr(self.build, "PI_EXTENSIONS_DIR", None)
         self.original_build_dir = self.build.BUILD_DIR
         self.original_pi_extensions_path = getattr(self.build, "PI_EXTENSIONS_PATH", None)

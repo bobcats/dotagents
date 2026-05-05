@@ -5,8 +5,10 @@ Skills and Pi extensions for AI coding agents.
 ## Quick Start
 
 ```bash
-make install
+make install FORCE=1
 ```
+
+Use `FORCE=1` for the first install, or when upgrading from an older dotagents install without a manifest. After that, use `make install` for normal safe updates.
 
 This builds and installs:
 - skills for Claude Code, OpenCode, Pi, and Codex
@@ -45,7 +47,8 @@ These methodology skills improve AI agent effectiveness:
 
 | Command | Description |
 |---------|-------------|
-| `make install` | Build and install skills, agents, and Pi extensions |
+| `make install FORCE=1` | First install, or force/reset managed install state |
+| `make install` | Build and safely update skills, agents, and Pi extensions after manifest bootstrap |
 | `make build` | Build skills, agents, and Pi extensions to `build/` |
 | `make typecheck` | Type-check Pi extensions |
 | `make install-skills` | Install skills only |
