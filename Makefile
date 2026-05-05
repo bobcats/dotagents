@@ -6,6 +6,10 @@
 
 PYTHON := python3
 BUILD_SCRIPT := $(CURDIR)/scripts/build.py
+INSTALL_ARGS :=
+ifeq ($(FORCE),1)
+INSTALL_ARGS += --force
+endif
 
 .PHONY: all install install-skills install-extensions build typecheck clean help check-python
 
@@ -16,6 +20,7 @@ help:
 	@echo ""
 	@echo "Usage:"
 	@echo "  make install            Build and install skills, agents, and Pi extensions"
+	@echo "  make install FORCE=1    Force install and initialize/reset manifest"
 	@echo "  make install-skills     Install skills only"
 	@echo "  make install-extensions Install Pi extensions only"
 	@echo "  make build              Build skills, agents, and Pi extensions"
@@ -34,7 +39,7 @@ check-python:
 		(echo "Error: Python 3.11+ required"; exit 1)
 
 install: check-python
-	@$(PYTHON) $(BUILD_SCRIPT) install
+	@$(PYTHON) $(BUILD_SCRIPT) install $(INSTALL_ARGS)
 	@echo "All skills, agents, and Pi extensions installed"
 
 build: check-python
@@ -44,10 +49,10 @@ typecheck:
 	@pnpm typecheck
 
 install-skills: check-python
-	@$(PYTHON) $(BUILD_SCRIPT) install-skills
+	@$(PYTHON) $(BUILD_SCRIPT) install-skills $(INSTALL_ARGS)
 
 install-extensions: check-python
-	@$(PYTHON) $(BUILD_SCRIPT) install-extensions
+	@$(PYTHON) $(BUILD_SCRIPT) install-extensions $(INSTALL_ARGS)
 
 clean: check-python
 	@$(PYTHON) $(BUILD_SCRIPT) clean
