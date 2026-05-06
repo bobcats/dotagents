@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import importlib.util
 import json
 import sys
@@ -33,7 +34,7 @@ def bootstrap_install(build, target, manifest_path: Path) -> str:
     return manifest_path.read_text()
 
 
-def test_install_without_manifest_requires_force_and_does_not_write(tmp_path):
+def test_install_without_manifest_requires_force_for_non_empty_destination_and_does_not_write(tmp_path):
     build = load_build_module()
     source = tmp_path / "build" / "skills"
     destination = tmp_path / "home" / ".agents" / "skills"
@@ -51,7 +52,61 @@ def test_install_without_manifest_requires_force_and_does_not_write(tmp_path):
     assert not manifest_path.exists()
 
 
-def test_force_bootstrap_replaces_tree_and_writes_manifest(tmp_path):
+def test_install_without_manifest_bootstraps_empty_tree_destination_without_force(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source / "demo" / "SKILL.md", "repo version\n")
+    destination.mkdir(parents=True)
+
+    target = tree_target(build, "unified-skills", source, destination)
+
+    result = build.safe_install_targets([target], manifest_path=manifest_path, force=False)
+
+    assert result == build.InstallResult(files_written=1, files_removed=0)
+    assert (destination / "demo" / "SKILL.md").read_text() == "repo version\n"
+    assert json.loads(manifest_path.read_text())["targets"]["unified-skills"]["files"]
+
+
+def test_file_target_without_manifest_bootstraps_missing_destination_without_force(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "configs" / "AGENTS.md"
+    destination = tmp_path / "home" / ".agents" / "AGENTS.md"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source, "agents guidance\n")
+
+    target = build.InstallTarget("global-agents-md", source, destination, "file")
+
+    build.safe_install_targets([target], manifest_path=manifest_path, force=False)
+
+    assert destination.read_text() == "agents guidance\n"
+    assert json.loads(manifest_path.read_text())["targets"]["global-agents-md"]["files"] == {
+        "AGENTS.md": build.hash_file(destination)
+    }
+
+
+def test_file_target_without_manifest_requires_force_for_existing_destination(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "configs" / "AGENTS.md"
+    destination = tmp_path / "home" / ".agents" / "AGENTS.md"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source, "repo guidance\n")
+    write_file(destination, "local guidance\n")
+
+    target = build.InstallTarget("global-agents-md", source, destination, "file")
+
+    with pytest.raises(build.InstallConflict, match="FORCE=1"):
+        build.safe_install_targets([target], manifest_path=manifest_path, force=False)
+
+    assert destination.read_text() == "local guidance\n"
+    assert not manifest_path.exists()
+
+
+def test_force_bootstrap_overwrites_collisions_preserves_unmanaged_and_writes_manifest(tmp_path):
     build = load_build_module()
     source = tmp_path / "build" / "skills"
     destination = tmp_path / "home" / ".agents" / "skills"
@@ -66,12 +121,196 @@ def test_force_bootstrap_replaces_tree_and_writes_manifest(tmp_path):
     build.safe_install_targets([target], manifest_path=manifest_path, force=True)
 
     assert (destination / "demo" / "SKILL.md").read_text() == "repo version\n"
-    assert not (destination / "stale" / "SKILL.md").exists()
+    assert (destination / "stale" / "SKILL.md").read_text() == "old install\n"
 
     manifest = json.loads(manifest_path.read_text())
     assert manifest["version"] == 1
     assert set(manifest["targets"]) == {"unified-skills"}
     assert set(manifest["targets"]["unified-skills"]["files"]) == {"demo/SKILL.md"}
+
+
+def test_force_removes_stale_managed_files_while_preserving_unmanaged_files(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source / "demo" / "SKILL.md", "repo v1\n")
+    write_file(source / "stale" / "SKILL.md", "repo stale\n")
+    target = tree_target(build, "unified-skills", source, destination)
+    bootstrap_install(build, target, manifest_path)
+
+    shutil_source = source / "stale"
+    for child in shutil_source.iterdir():
+        child.unlink()
+    shutil_source.rmdir()
+    write_file(source / "demo" / "SKILL.md", "repo v2\n")
+    write_file(destination / "custom" / "SKILL.md", "manual skill\n")
+    write_file(destination / "demo" / "local.txt", "manual note\n")
+
+    build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    assert (destination / "demo" / "SKILL.md").read_text() == "repo v2\n"
+    assert not (destination / "stale" / "SKILL.md").exists()
+    assert (destination / "custom" / "SKILL.md").read_text() == "manual skill\n"
+    assert (destination / "demo" / "local.txt").read_text() == "manual note\n"
+
+
+def test_empty_source_target_is_refused_without_changing_destination(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    source.mkdir(parents=True)
+    write_file(destination / "custom" / "SKILL.md", "manual skill\n")
+    target = tree_target(build, "unified-skills", source, destination)
+
+    with pytest.raises(build.InstallConflict, match="No source files"):
+        build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    assert (destination / "custom" / "SKILL.md").read_text() == "manual skill\n"
+    assert not manifest_path.exists()
+
+
+def test_force_install_refuses_unmanaged_file_blocking_source_directory(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source / "demo" / "SKILL.md", "repo version\n")
+    write_file(destination / "demo", "manual file\n")
+
+    target = tree_target(build, "unified-skills", source, destination)
+
+    with pytest.raises(build.InstallConflict, match="non-directory install path"):
+        build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    assert (destination / "demo").read_text() == "manual file\n"
+    assert not manifest_path.exists()
+
+
+def test_force_install_refuses_directory_blocking_source_file(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source / "demo" / "SKILL.md", "repo version\n")
+    write_file(destination / "demo" / "SKILL.md" / "local.txt", "manual file\n")
+
+    target = tree_target(build, "unified-skills", source, destination)
+
+    with pytest.raises(build.InstallConflict, match="non-regular install path"):
+        build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    assert (destination / "demo" / "SKILL.md" / "local.txt").read_text() == "manual file\n"
+    assert not manifest_path.exists()
+
+
+def test_force_file_target_refuses_directory_destination(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "configs" / "AGENTS.md"
+    destination = tmp_path / "home" / ".agents" / "AGENTS.md"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source, "repo guidance\n")
+    write_file(destination / "local.txt", "manual file\n")
+
+    target = build.InstallTarget("global-agents-md", source, destination, "file")
+
+    with pytest.raises(build.InstallConflict, match="non-regular install path"):
+        build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    assert (destination / "local.txt").read_text() == "manual file\n"
+    assert not manifest_path.exists()
+
+
+def test_install_overwrites_destination_symlink_without_following_it(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+    outside = tmp_path / "outside.txt"
+
+    write_file(source / "demo" / "SKILL.md", "repo version\n")
+    write_file(outside, "outside\n")
+    (destination / "demo").mkdir(parents=True)
+    (destination / "demo" / "SKILL.md").symlink_to(outside)
+
+    target = tree_target(build, "unified-skills", source, destination)
+
+    build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    installed = destination / "demo" / "SKILL.md"
+    assert installed.read_text() == "repo version\n"
+    assert not installed.is_symlink()
+    assert outside.read_text() == "outside\n"
+
+
+def test_force_install_replaces_symlinked_parent_without_touching_target(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+    outside = tmp_path / "outside"
+
+    write_file(source / "demo" / "SKILL.md", "repo version\n")
+    write_file(outside / "SKILL.md", "outside\n")
+    destination.mkdir(parents=True)
+    (destination / "demo").symlink_to(outside, target_is_directory=True)
+
+    target = tree_target(build, "unified-skills", source, destination)
+
+    build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    assert (outside / "SKILL.md").read_text() == "outside\n"
+    assert not (destination / "demo").is_symlink()
+    assert (destination / "demo" / "SKILL.md").read_text() == "repo version\n"
+
+
+def test_install_rejects_symlinked_destination_parent(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    home = tmp_path / "home"
+    outside = tmp_path / "outside"
+    destination = home / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source / "demo" / "SKILL.md", "repo version\n")
+    home.mkdir()
+    outside.mkdir()
+    (home / ".agents").symlink_to(outside, target_is_directory=True)
+
+    target = tree_target(build, "unified-skills", source, destination)
+
+    with pytest.raises(build.InstallConflict, match="unsafe install target path"):
+        build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    assert not (outside / "skills").exists()
+    assert not manifest_path.exists()
+
+
+def test_force_install_refuses_directory_replacing_stale_managed_file(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source / "demo" / "old.txt", "repo v1\n")
+    target = tree_target(build, "unified-skills", source, destination)
+    bootstrap_install(build, target, manifest_path)
+
+    (source / "demo" / "old.txt").unlink()
+    write_file(source / "demo" / "new.txt", "repo v2\n")
+    (destination / "demo" / "old.txt").unlink()
+    write_file(destination / "demo" / "old.txt" / "local.txt", "manual file\n")
+
+    with pytest.raises(build.InstallConflict, match="non-regular install path"):
+        build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    assert (destination / "demo" / "old.txt" / "local.txt").read_text() == "manual file\n"
 
 
 def test_force_reinitializes_unsupported_manifest(tmp_path):
@@ -324,11 +563,334 @@ def test_install_extensions_syncs_extension_target_in_safe_install_call(tmp_path
     assert calls == [(["pi-extensions"], True, build.MANIFEST_PATH)]
 
 
-def test_install_command_without_manifest_fails_before_installing(tmp_path):
+def test_clean_manifest_rejects_symlinked_destination_ancestor(tmp_path, monkeypatch):
+    build = load_build_module()
+    home = tmp_path / "home"
+    outside = tmp_path / "outside"
+    destination = home / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    home.mkdir()
+    write_file(outside / "skills" / "managed" / "SKILL.md", "do not delete\n")
+    (home / ".agents").symlink_to(outside, target_is_directory=True)
+    write_file(
+        manifest_path,
+        json.dumps(
+            {
+                "version": 1,
+                "targets": {
+                    "unified-skills": {
+                        "path": str(destination),
+                        "kind": "tree",
+                        "files": {"managed/SKILL.md": "unused"},
+                    }
+                },
+            }
+        ),
+    )
+    monkeypatch.setattr(build, "INSTALL_PATHS", {"unified": destination})
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", home / ".pi" / "agent" / "agents")
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", home / ".pi" / "agent" / "extensions")
+    monkeypatch.setattr(build, "HOME", home)
+
+    with pytest.raises(build.InstallConflict, match="unsafe install target path"):
+        build.clean_manifest_install(manifest_path)
+
+    assert (outside / "skills" / "managed" / "SKILL.md").read_text() == "do not delete\n"
+    assert manifest_path.exists()
+
+
+def test_clean_manifest_rejects_targets_outside_known_install_roots(tmp_path, monkeypatch):
+    build = load_build_module()
+    install_root = tmp_path / "home" / ".agents" / "skills"
+    victim = tmp_path / "victim"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(victim / "data.txt", "do not delete\n")
+    write_file(
+        manifest_path,
+        json.dumps(
+            {
+                "version": 1,
+                "targets": {
+                    "unified-skills": {
+                        "path": str(victim),
+                        "kind": "tree",
+                        "files": {"data.txt": "unused"},
+                    }
+                },
+            }
+        ),
+    )
+    monkeypatch.setattr(build, "INSTALL_PATHS", {"unified": install_root})
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", tmp_path / "home" / ".pi" / "agent" / "agents")
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", tmp_path / "home" / ".pi" / "agent" / "extensions")
+    monkeypatch.setattr(build, "HOME", tmp_path / "home")
+
+    with pytest.raises(build.InstallConflict, match="outside known install target"):
+        build.clean_manifest_install(manifest_path)
+
+    assert (victim / "data.txt").read_text() == "do not delete\n"
+    assert manifest_path.exists()
+
+
+def test_clean_manifest_rejects_directory_file_entries(tmp_path, monkeypatch):
+    build = load_build_module()
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(destination / "managed" / "local.txt", "do not delete\n")
+    write_file(
+        manifest_path,
+        json.dumps(
+            {
+                "version": 1,
+                "targets": {
+                    "unified-skills": {
+                        "path": str(destination),
+                        "kind": "tree",
+                        "files": {"managed": "unused"},
+                    }
+                },
+            }
+        ),
+    )
+    monkeypatch.setattr(build, "INSTALL_PATHS", {"unified": destination})
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", tmp_path / "home" / ".pi" / "agent" / "agents")
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", tmp_path / "home" / ".pi" / "agent" / "extensions")
+    monkeypatch.setattr(build, "HOME", tmp_path / "home")
+
+    with pytest.raises(build.InstallConflict, match="unsafe manifest path"):
+        build.clean_manifest_install(manifest_path)
+
+    assert (destination / "managed" / "local.txt").read_text() == "do not delete\n"
+    assert manifest_path.exists()
+
+
+def test_clean_manifest_rejects_symlinked_parent_paths(tmp_path, monkeypatch):
+    build = load_build_module()
+    destination = tmp_path / "home" / ".agents" / "skills"
+    outside = tmp_path / "outside"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(outside / "SKILL.md", "do not delete\n")
+    destination.mkdir(parents=True)
+    (destination / "managed").symlink_to(outside, target_is_directory=True)
+    write_file(
+        manifest_path,
+        json.dumps(
+            {
+                "version": 1,
+                "targets": {
+                    "unified-skills": {
+                        "path": str(destination),
+                        "kind": "tree",
+                        "files": {"managed/SKILL.md": "unused"},
+                    }
+                },
+            }
+        ),
+    )
+    monkeypatch.setattr(build, "INSTALL_PATHS", {"unified": destination})
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", tmp_path / "home" / ".pi" / "agent" / "agents")
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", tmp_path / "home" / ".pi" / "agent" / "extensions")
+    monkeypatch.setattr(build, "HOME", tmp_path / "home")
+
+    with pytest.raises(build.InstallConflict, match="unsafe manifest path"):
+        build.clean_manifest_install(manifest_path)
+
+    assert (outside / "SKILL.md").read_text() == "do not delete\n"
+    assert manifest_path.exists()
+
+
+def test_clean_manifest_rejects_unsafe_relative_paths(tmp_path, monkeypatch):
+    build = load_build_module()
+    destination = tmp_path / "home" / ".agents" / "skills"
+    victim = tmp_path / "home" / ".agents" / "victim.txt"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(destination / "managed" / "SKILL.md", "managed\n")
+    write_file(victim, "do not delete\n")
+    write_file(
+        manifest_path,
+        json.dumps(
+            {
+                "version": 1,
+                "targets": {
+                    "unified-skills": {
+                        "path": str(destination),
+                        "kind": "tree",
+                        "files": {"../victim.txt": "unused"},
+                    }
+                },
+            }
+        ),
+    )
+    monkeypatch.setattr(build, "INSTALL_PATHS", {"unified": destination})
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", tmp_path / "home" / ".pi" / "agent" / "agents")
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", tmp_path / "home" / ".pi" / "agent" / "extensions")
+    monkeypatch.setattr(build, "HOME", tmp_path / "home")
+
+    with pytest.raises(build.InstallConflict, match="unsafe manifest path"):
+        build.clean_manifest_install(manifest_path)
+
+    assert victim.read_text() == "do not delete\n"
+    assert manifest_path.exists()
+
+
+def test_clean_legacy_skills_rejects_unsafe_manifest_entry(tmp_path, monkeypatch):
+    build = load_build_module()
+    install_root = tmp_path / "home" / ".agents" / "skills"
+    victim = tmp_path / "home" / ".agents" / "victim"
+
+    write_file(install_root / build.SKILLS_MANIFEST, "../victim\n")
+    write_file(victim / "SKILL.md", "do not delete\n")
+    monkeypatch.setattr(build, "INSTALL_PATHS", {"unified": install_root})
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", tmp_path / "home" / ".pi" / "agent" / "agents")
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", tmp_path / "home" / ".pi" / "agent" / "extensions")
+    monkeypatch.setattr(build, "HOME", tmp_path / "home")
+
+    with pytest.raises(build.InstallConflict, match="unsafe legacy manifest entry"):
+        build.clean_legacy_installs()
+
+    assert (victim / "SKILL.md").read_text() == "do not delete\n"
+    assert (install_root / build.SKILLS_MANIFEST).exists()
+
+
+def test_clean_legacy_extensions_rejects_unsafe_manifest_entry(tmp_path, monkeypatch):
+    build = load_build_module()
+    install_root = tmp_path / "home" / ".pi" / "agent" / "extensions"
+    victim = tmp_path / "home" / ".pi" / "agent" / "victim"
+
+    write_file(install_root / build.PI_EXTENSIONS_MANIFEST, "../victim\n")
+    write_file(victim / "index.ts", "do not delete\n")
+    monkeypatch.setattr(build, "INSTALL_PATHS", {})
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", tmp_path / "home" / ".pi" / "agent" / "agents")
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", install_root)
+    monkeypatch.setattr(build, "HOME", tmp_path / "home")
+
+    with pytest.raises(build.InstallConflict, match="unsafe legacy manifest entry"):
+        build.clean_legacy_installs()
+
+    assert (victim / "index.ts").read_text() == "do not delete\n"
+    assert (install_root / build.PI_EXTENSIONS_MANIFEST).exists()
+
+
+def test_clean_legacy_skills_refuses_modified_managed_directory(tmp_path, monkeypatch):
+    build = load_build_module()
+    install_root = tmp_path / "home" / ".agents" / "skills"
+    build_dir = tmp_path / "build"
+
+    write_file(install_root / build.SKILLS_MANIFEST, "demo\n")
+    write_file(install_root / "demo" / "SKILL.md", "local skill\n")
+    write_file(build_dir / "skills" / "demo" / "SKILL.md", "repo skill\n")
+    monkeypatch.setattr(build, "INSTALL_PATHS", {"unified": install_root})
+    monkeypatch.setattr(build, "BUILD_DIR", build_dir)
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", tmp_path / "home" / ".pi" / "agent" / "agents")
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", tmp_path / "home" / ".pi" / "agent" / "extensions")
+    monkeypatch.setattr(build, "HOME", tmp_path / "home")
+
+    with pytest.raises(build.InstallConflict, match="locally modified legacy install directory"):
+        build.clean_legacy_installs()
+
+    assert (install_root / "demo" / "SKILL.md").read_text() == "local skill\n"
+    assert (install_root / build.SKILLS_MANIFEST).exists()
+
+
+def test_clean_legacy_extensions_refuses_modified_managed_directory(tmp_path, monkeypatch):
+    build = load_build_module()
+    install_root = tmp_path / "home" / ".pi" / "agent" / "extensions"
+    build_dir = tmp_path / "build"
+
+    write_file(install_root / build.PI_EXTENSIONS_MANIFEST, "demo\n")
+    write_file(install_root / "demo" / "index.ts", "local extension\n")
+    write_file(build_dir / "extensions" / "demo" / "index.ts", "repo extension\n")
+    monkeypatch.setattr(build, "INSTALL_PATHS", {})
+    monkeypatch.setattr(build, "BUILD_DIR", build_dir)
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", tmp_path / "home" / ".pi" / "agent" / "agents")
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", install_root)
+    monkeypatch.setattr(build, "HOME", tmp_path / "home")
+
+    with pytest.raises(build.InstallConflict, match="locally modified legacy install directory"):
+        build.clean_legacy_installs()
+
+    assert (install_root / "demo" / "index.ts").read_text() == "local extension\n"
+    assert (install_root / build.PI_EXTENSIONS_MANIFEST).exists()
+
+
+def test_clean_legacy_agents_refuses_modified_file_without_manifest(tmp_path, monkeypatch):
+    build = load_build_module()
+    source = tmp_path / "agents-source"
+    installed = tmp_path / "home" / ".pi" / "agent" / "agents"
+
+    write_file(source / "code-reviewer.md", "repo agent\n")
+    write_file(installed / "code-reviewer.md", "local agent\n")
+    monkeypatch.setattr(build, "INSTALL_PATHS", {})
+    monkeypatch.setattr(build, "AGENTS_DIR", source)
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", installed)
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", tmp_path / "home" / ".pi" / "agent" / "extensions")
+    monkeypatch.setattr(build, "HOME", tmp_path / "home")
+
+    with pytest.raises(build.InstallConflict, match="locally modified legacy install file"):
+        build.clean_legacy_installs()
+
+    assert (installed / "code-reviewer.md").read_text() == "local agent\n"
+
+
+def test_clean_legacy_global_agents_refuses_modified_file_without_manifest(tmp_path, monkeypatch):
+    build = load_build_module()
+    source = tmp_path / "configs" / "AGENTS.md"
+    installed = tmp_path / "home" / ".agents" / "AGENTS.md"
+
+    write_file(source, "repo guidance\n")
+    write_file(installed, "local guidance\n")
+    monkeypatch.setattr(build, "INSTALL_PATHS", {})
+    monkeypatch.setattr(build, "AGENTS_DIR", tmp_path / "agents-source")
+    monkeypatch.setattr(build, "PI_AGENTS_PATH", tmp_path / "home" / ".pi" / "agent" / "agents")
+    monkeypatch.setattr(build, "PI_EXTENSIONS_PATH", tmp_path / "home" / ".pi" / "agent" / "extensions")
+    monkeypatch.setattr(build, "GLOBAL_AGENTS_MD", source)
+    monkeypatch.setattr(build, "HOME", tmp_path / "home")
+
+    with pytest.raises(build.InstallConflict, match="locally modified legacy install file"):
+        build.clean_legacy_installs()
+
+    assert installed.read_text() == "local guidance\n"
+
+
+def test_clean_command_runs_under_install_lock(monkeypatch):
+    build = load_build_module()
+    events = []
+
+    @contextmanager
+    def fake_install_lock():
+        events.append("lock-enter")
+        yield
+        events.append("lock-exit")
+
+    monkeypatch.setattr(build, "install_lock", fake_install_lock)
+    monkeypatch.setattr(build, "clean", lambda: events.append("clean"))
+    monkeypatch.setattr(sys, "argv", ["build.py", "clean"])
+
+    build.main()
+
+    assert events == ["lock-enter", "clean", "lock-exit"]
+
+
+def test_empty_xdg_state_home_uses_default_state_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_STATE_HOME", "")
+
+    build = load_build_module()
+
+    assert build.STATE_DIR == tmp_path / "home" / ".local" / "state" / "dotagents"
+
+
+def test_install_command_without_manifest_fails_for_non_empty_destination(tmp_path):
     env = {
         "HOME": str(tmp_path / "home"),
         "XDG_STATE_HOME": str(tmp_path / "state"),
     }
+    write_file(tmp_path / "home" / ".agents" / "skills" / "custom" / "SKILL.md", "manual\n")
 
     import os
     import subprocess
@@ -345,4 +907,4 @@ def test_install_command_without_manifest_fails_before_installing(tmp_path):
     assert result.returncode != 0
     assert "FORCE=1" in result.stderr or "FORCE=1" in result.stdout
     assert "Traceback" not in result.stderr
-    assert not (tmp_path / "home" / ".agents" / "skills").exists()
+    assert (tmp_path / "home" / ".agents" / "skills" / "custom" / "SKILL.md").read_text() == "manual\n"

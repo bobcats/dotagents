@@ -42,7 +42,7 @@ INSTALL_PATHS = {
 }
 PI_AGENTS_PATH = HOME / ".pi" / "agent" / "agents"
 PI_EXTENSIONS_PATH = HOME / ".pi" / "agent" / "extensions"
-STATE_DIR = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local" / "state")) / "dotagents"
+STATE_DIR = Path(os.environ.get("XDG_STATE_HOME") or HOME / ".local" / "state") / "dotagents"
 MANIFEST_PATH = STATE_DIR / "install-manifest.json"
 LOCK_PATH = STATE_DIR / "install.lock"
 MANIFEST_VERSION = 1
@@ -113,13 +113,17 @@ def empty_manifest() -> dict:
 
 def iter_source_files(target: InstallTarget) -> dict[str, Path]:
     if target.kind == "file":
+        if not target.source.is_file():
+            return {}
         return {target.destination.name: target.source}
 
     files: dict[str, Path] = {}
     if not target.source.exists():
         return files
 
-    for source_file in sorted(path for path in target.source.rglob("*") if path.is_file()):
+    for source_file in sorted(
+        path for path in target.source.rglob("*") if path.is_file() and not path.is_symlink()
+    ):
         files[source_file.relative_to(target.source).as_posix()] = source_file
     return files
 
@@ -168,36 +172,97 @@ def remove_path(path: Path) -> None:
         path.unlink()
 
 
-def copy_destination_to_stage(target: InstallTarget, stage_path: Path, force: bool) -> None:
+def resolved_path(path: Path) -> Path:
+    return path.resolve(strict=False)
+
+
+def path_has_unsafe_existing_ancestor(path: Path, *, include_self: bool = False) -> bool:
+    end = path if include_self else path.parent
+    try:
+        relative = end.relative_to(HOME)
+    except ValueError:
+        candidates = [end, end.parent] if include_self else [end]
+    else:
+        current = HOME
+        candidates = []
+        for part in relative.parts:
+            current = current / part
+            candidates.append(current)
+
+    return any(
+        (candidate.exists() or candidate.is_symlink())
+        and (candidate.is_symlink() or not candidate.is_dir())
+        for candidate in candidates
+    )
+
+
+def relative_path_parent_is_unsafe(root: Path, relative_path: str) -> bool:
+    current = root
+    for part in Path(relative_path).parts[:-1]:
+        current = current / part
+        if current.is_symlink() or (current.exists() and not current.is_dir()):
+            return True
+    return False
+
+
+def relative_path_parent_has_non_directory(root: Path, relative_path: str) -> bool:
+    current = root
+    for part in Path(relative_path).parts[:-1]:
+        current = current / part
+        if current.exists() and not current.is_symlink() and not current.is_dir():
+            return True
+    return False
+
+
+def ensure_stage_parent_directory(stage_path: Path, relative_path: str) -> None:
+    current = stage_path
+    for part in Path(relative_path).parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            remove_path(current)
+        elif current.exists() and not current.is_dir():
+            raise InstallConflict(f"Refusing to replace non-directory install path: {current}")
+        current.mkdir(exist_ok=True)
+
+
+def copy_destination_to_stage(target: InstallTarget, stage_path: Path) -> None:
     if target.kind == "tree":
-        if not force and target.destination.exists():
+        if target.destination.exists() or target.destination.is_symlink():
+            if not target.destination.is_dir() or target.destination.is_symlink():
+                raise InstallConflict(f"Install destination is not a directory: {target.destination}")
             shutil.copytree(target.destination, stage_path, symlinks=True)
         else:
             stage_path.mkdir(parents=True, exist_ok=True)
         return
 
     stage_path.parent.mkdir(parents=True, exist_ok=True)
-    if not force and target.destination.exists():
-        shutil.copy2(target.destination, stage_path)
+    if target.destination.exists() or target.destination.is_symlink():
+        shutil.copy2(target.destination, stage_path, follow_symlinks=False)
 
 
-def stage_target(target: InstallTarget, stage_path: Path, manifest: dict, force: bool) -> dict[str, str]:
-    copy_destination_to_stage(target, stage_path, force)
+def stage_target(target: InstallTarget, stage_path: Path, manifest: dict) -> dict[str, str]:
+    copy_destination_to_stage(target, stage_path)
     previous_files = target_files_from_manifest(manifest, target)
     files = iter_source_files(target)
     next_files: dict[str, str] = {}
 
-    if not force:
-        for relative_path in sorted(set(previous_files) - set(files)):
-            staged_destination = stage_file_path(target, stage_path, relative_path)
-            if staged_destination.exists():
-                staged_destination.unlink()
-                if target.kind == "tree":
-                    prune_empty_parents(staged_destination, stage_path)
+    for relative_path in sorted(set(previous_files) - set(files)):
+        staged_destination = stage_file_path(target, stage_path, relative_path)
+        if target.kind == "tree" and relative_path_parent_is_unsafe(stage_path, relative_path):
+            continue
+        if staged_destination.exists() or staged_destination.is_symlink():
+            staged_destination.unlink()
+            if target.kind == "tree":
+                prune_empty_parents(staged_destination, stage_path)
 
     for relative_path, source_file in files.items():
         staged_destination = stage_file_path(target, stage_path, relative_path)
-        staged_destination.parent.mkdir(parents=True, exist_ok=True)
+        if target.kind == "tree":
+            ensure_stage_parent_directory(stage_path, relative_path)
+        else:
+            staged_destination.parent.mkdir(parents=True, exist_ok=True)
+        if staged_destination.is_symlink():
+            staged_destination.unlink()
         shutil.copy2(source_file, staged_destination)
         next_files[relative_path] = hash_file(staged_destination)
 
@@ -217,6 +282,8 @@ def unique_sibling_path(destination: Path, label: str) -> Path:
 
 def swap_target_into_place(stage_path: Path, target: InstallTarget) -> Path | None:
     backup_path = None
+    # Writers are serialized by the install lock, but readers may briefly see no
+    # destination between these two renames.
     if target.destination.exists() or target.destination.is_symlink():
         backup_path = unique_sibling_path(target.destination, "backup")
         target.destination.rename(backup_path)
@@ -244,10 +311,43 @@ def cleanup_backups(swapped: list[SwappedTarget]) -> None:
             remove_path(swapped_target.backup_path)
 
 
-def preflight_install_targets(targets: list[InstallTarget], manifest: dict, force: bool) -> None:
-    if force:
-        return
+def validate_install_target_paths(targets: list[InstallTarget]) -> None:
+    unsafe_targets = [
+        target.destination
+        for target in targets
+        if path_has_unsafe_existing_ancestor(
+            target.destination, include_self=target.kind == "tree"
+        )
+    ]
+    if unsafe_targets:
+        paths = ", ".join(str(path) for path in unsafe_targets)
+        raise InstallConflict(f"Refusing unsafe install target path(s): {paths}")
 
+
+def validate_source_targets(targets: list[InstallTarget]) -> None:
+    empty_targets = [target.name for target in targets if not iter_source_files(target)]
+    if empty_targets:
+        names = ", ".join(empty_targets)
+        raise InstallConflict(f"No source files found for install target(s): {names}")
+
+
+def collect_hard_install_conflicts(targets: list[InstallTarget], manifest: dict) -> list[str]:
+    conflicts: list[str] = []
+    for target in targets:
+        relative_paths = set(iter_source_files(target)) | set(target_files_from_manifest(manifest, target))
+        for relative_path in relative_paths:
+            destination = destination_file(target, relative_path)
+            if target.kind == "tree" and relative_path_parent_has_non_directory(
+                target.destination, relative_path
+            ):
+                conflicts.append(f"{destination} has a non-directory install path")
+                continue
+            if destination.exists() and not destination.is_symlink() and not destination.is_file():
+                conflicts.append(f"{destination} has a non-regular install path")
+    return conflicts
+
+
+def collect_install_conflicts(targets: list[InstallTarget], manifest: dict) -> list[str]:
     conflicts: list[str] = []
 
     for target in targets:
@@ -256,9 +356,15 @@ def preflight_install_targets(targets: list[InstallTarget], manifest: dict, forc
 
         for relative_path, previous_hash in previous_files.items():
             destination = destination_file(target, relative_path)
-            if not destination.exists():
+            if target.kind == "tree" and relative_path_parent_is_unsafe(target.destination, relative_path):
+                conflicts.append(f"{destination} has an unsafe parent path")
+                continue
+            if not destination.exists() and not destination.is_symlink():
                 if relative_path in desired_files:
                     conflicts.append(f"{destination} was locally deleted")
+                continue
+            if destination.is_symlink() or not destination.is_file():
+                conflicts.append(f"{destination} is not a regular file")
                 continue
             if hash_file(destination) != previous_hash:
                 conflicts.append(f"{destination} was locally modified")
@@ -267,15 +373,46 @@ def preflight_install_targets(targets: list[InstallTarget], manifest: dict, forc
             destination = destination_file(target, relative_path)
             if relative_path in previous_files:
                 continue
+            if target.kind == "tree" and relative_path_parent_is_unsafe(target.destination, relative_path):
+                conflicts.append(f"{destination} has an unsafe parent path")
+                continue
+            if destination.is_symlink() or (destination.exists() and not destination.is_file()):
+                conflicts.append(f"{destination} already exists and is not a regular file")
+                continue
             if destination.exists() and hash_file(destination) != desired_hash:
                 conflicts.append(f"{destination} already exists and is not managed")
+
+    return conflicts
+
+
+def preflight_install_targets(targets: list[InstallTarget], manifest: dict, force: bool) -> None:
+    hard_conflicts = collect_hard_install_conflicts(targets, manifest)
+    if hard_conflicts:
+        details = "\n".join(f"  - {conflict}" for conflict in hard_conflicts)
+        raise InstallConflict(f"Refusing structural install conflicts:\n{details}")
+
+    conflicts = collect_install_conflicts(targets, manifest)
+    if force:
+        if conflicts:
+            print(f"  FORCE=1: ignoring {len(conflicts)} install conflict(s)")
+        return
 
     if conflicts:
         details = "\n".join(f"  - {conflict}" for conflict in conflicts)
         raise InstallConflict(f"Refusing to overwrite locally modified install files:\n{details}")
 
 
-def manifest_for_install(manifest_path: Path, force: bool) -> dict:
+def destination_is_empty(target: InstallTarget) -> bool:
+    if not target.destination.exists() and not target.destination.is_symlink():
+        return True
+    if target.kind == "file":
+        return False
+    if not target.destination.is_dir() or target.destination.is_symlink():
+        return False
+    return next(target.destination.iterdir(), None) is None
+
+
+def manifest_for_install(manifest_path: Path, force: bool, targets: list[InstallTarget]) -> dict:
     try:
         manifest = load_install_manifest(manifest_path)
     except InstallConflict:
@@ -286,12 +423,12 @@ def manifest_for_install(manifest_path: Path, force: bool) -> dict:
     if manifest is not None:
         return manifest
 
-    if force:
+    if force or all(destination_is_empty(target) for target in targets):
         return empty_manifest()
 
     raise InstallConflict(
-        "No dotagents install manifest found. Run `make install FORCE=1` "
-        "to initialize managed install state."
+        "No dotagents install manifest found and at least one install destination is not empty. "
+        "Run `make install FORCE=1` to bootstrap managed install state."
     )
 
 
@@ -307,7 +444,6 @@ def cleanup_staged_paths(
 def stage_install_targets(
     targets: list[InstallTarget],
     manifest: dict,
-    force: bool,
 ) -> tuple[list[StagedTarget], dict, InstallResult]:
     next_manifest = deepcopy(manifest)
     files_written = 0
@@ -319,7 +455,7 @@ def stage_install_targets(
             stage_path = unique_sibling_path(target.destination, "stage")
             try:
                 previous_files = target_files_from_manifest(next_manifest, target)
-                next_files = stage_target(target, stage_path, next_manifest, force)
+                next_files = stage_target(target, stage_path, next_manifest)
             except Exception:
                 remove_path(stage_path)
                 raise
@@ -378,13 +514,15 @@ def safe_install_targets(
     if manifest_path is None:
         manifest_path = MANIFEST_PATH
     targets = list(targets)
-    manifest = manifest_for_install(manifest_path, force)
+    validate_install_target_paths(targets)
+    validate_source_targets(targets)
+    manifest = manifest_for_install(manifest_path, force, targets)
     preflight_install_targets(targets, manifest, force)
 
     staged_targets: list[StagedTarget] = []
     staged_manifest: Path | None = None
     try:
-        staged_targets, next_manifest, result = stage_install_targets(targets, manifest, force)
+        staged_targets, next_manifest, result = stage_install_targets(targets, manifest)
         staged_manifest = write_staged_manifest(next_manifest, manifest_path)
         commit_staged_install(staged_targets, staged_manifest, manifest_path)
     finally:
@@ -685,6 +823,69 @@ def load_managed_extensions() -> set[str]:
     return load_manifest(managed_extensions_manifest_path())
 
 
+def known_install_targets() -> dict[str, InstallTarget]:
+    targets = skill_install_targets() + agent_install_targets() + extension_install_targets()
+    targets.append(
+        InstallTarget("global-agents-md", GLOBAL_AGENTS_MD, HOME / ".agents" / "AGENTS.md", "file")
+    )
+    return {target.name: target for target in targets}
+
+
+def is_safe_relative_manifest_path(relative_path: str) -> bool:
+    path = Path(relative_path)
+    return bool(path.parts) and not path.is_absolute() and ".." not in path.parts
+
+
+def manifest_clean_entries(manifest: dict) -> list[tuple[InstallTarget, list[str]]]:
+    known_targets = known_install_targets()
+    entries: list[tuple[InstallTarget, list[str]]] = []
+
+    for target_name, target_data in manifest.get("targets", {}).items():
+        expected_target = known_targets.get(target_name)
+        if expected_target is None:
+            raise InstallConflict(f"Refusing to clean unknown install target: {target_name}")
+
+        destination = Path(target_data.get("path", ""))
+        kind = target_data.get("kind")
+        if kind != expected_target.kind or resolved_path(destination) != resolved_path(
+            expected_target.destination
+        ):
+            raise InstallConflict(
+                f"Refusing to clean {destination}: outside known install target {expected_target.destination}"
+            )
+        if path_has_unsafe_existing_ancestor(
+            expected_target.destination, include_self=expected_target.kind == "tree"
+        ):
+            raise InstallConflict(f"Refusing unsafe install target path: {expected_target.destination}")
+
+        files = target_data.get("files", {})
+        if not isinstance(files, dict):
+            raise InstallConflict(f"Invalid install manifest files for target: {target_name}")
+
+        relative_paths = sorted(files)
+        for relative_path in relative_paths:
+            if not is_safe_relative_manifest_path(relative_path):
+                raise InstallConflict(f"Refusing unsafe manifest path: {relative_path}")
+            if expected_target.kind == "file" and relative_path != expected_target.destination.name:
+                raise InstallConflict(f"Refusing unsafe manifest path: {relative_path}")
+            if expected_target.kind == "tree" and (
+                expected_target.destination.is_symlink()
+                or relative_path_parent_is_unsafe(expected_target.destination, relative_path)
+            ):
+                raise InstallConflict(f"Refusing unsafe manifest path: {relative_path}")
+            installed = (
+                expected_target.destination
+                if expected_target.kind == "file"
+                else expected_target.destination / relative_path
+            )
+            if installed.exists() and not installed.is_symlink() and not installed.is_file():
+                raise InstallConflict(f"Refusing unsafe manifest path: {relative_path}")
+
+        entries.append((expected_target, relative_paths))
+
+    return entries
+
+
 def clean_manifest_install(manifest_path: Path | None = None) -> None:
     if manifest_path is None:
         manifest_path = MANIFEST_PATH
@@ -692,18 +893,69 @@ def clean_manifest_install(manifest_path: Path | None = None) -> None:
     if manifest is None:
         return
 
-    for target_data in manifest.get("targets", {}).values():
-        destination = Path(target_data["path"])
-        kind = target_data["kind"]
-        for relative_path in sorted(target_data.get("files", {})):
-            installed = destination if kind == "file" else destination / relative_path
+    for target, relative_paths in manifest_clean_entries(manifest):
+        for relative_path in relative_paths:
+            installed = target.destination if target.kind == "file" else target.destination / relative_path
             remove_path(installed)
-            if kind == "tree":
-                prune_empty_parents(installed, destination)
+            if target.kind == "tree":
+                prune_empty_parents(installed, target.destination)
             print(f"  Removed {installed}")
 
     manifest_path.unlink()
     print(f"  Removed {manifest_path}")
+
+
+def validate_legacy_manifest_entries(root: Path, entries: Iterable[str]) -> list[str]:
+    if path_has_unsafe_existing_ancestor(root, include_self=True):
+        raise InstallConflict(f"Refusing unsafe legacy manifest entry under {root}")
+
+    safe_entries: list[str] = []
+    for entry in entries:
+        path = Path(entry)
+        if not is_safe_relative_manifest_path(entry) or len(path.parts) != 1:
+            raise InstallConflict(f"Refusing unsafe legacy manifest entry: {entry}")
+        safe_entries.append(entry)
+    return safe_entries
+
+
+def remove_legacy_file_if_matches_source(installed: Path, source: Path) -> None:
+    if not source.exists() or (not installed.exists() and not installed.is_symlink()):
+        return
+    if installed.is_symlink() or not installed.is_file() or hash_file(installed) != hash_file(source):
+        raise InstallConflict(f"Refusing to remove locally modified legacy install file: {installed}")
+    installed.unlink()
+    print(f"  Removed {installed}")
+
+
+def legacy_directory_files(root: Path) -> dict[str, Path]:
+    if root.is_symlink() or not root.is_dir():
+        raise InstallConflict(f"Refusing locally modified legacy install directory: {root}")
+
+    files: dict[str, Path] = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink() or (path.exists() and not path.is_dir() and not path.is_file()):
+            raise InstallConflict(f"Refusing locally modified legacy install directory: {root}")
+        if path.is_file():
+            files[path.relative_to(root).as_posix()] = path
+    return files
+
+
+def remove_legacy_directory_if_matches_source(installed: Path, source: Path) -> None:
+    if not installed.exists() and not installed.is_symlink():
+        return
+    if not source.is_dir():
+        raise InstallConflict(f"Refusing locally modified legacy install directory: {installed}")
+
+    installed_files = legacy_directory_files(installed)
+    source_files = legacy_directory_files(source)
+    if set(installed_files) != set(source_files):
+        raise InstallConflict(f"Refusing locally modified legacy install directory: {installed}")
+    for relative_path, installed_file in installed_files.items():
+        if hash_file(installed_file) != hash_file(source_files[relative_path]):
+            raise InstallConflict(f"Refusing locally modified legacy install directory: {installed}")
+
+    remove_path(installed)
+    print(f"  Removed {installed}")
 
 
 def clean_legacy_installs() -> None:
@@ -711,11 +963,10 @@ def clean_legacy_installs() -> None:
         if not path.exists():
             continue
 
-        for skill_name in sorted(load_managed_skills(path)):
-            installed = path / skill_name
-            if installed.exists():
-                shutil.rmtree(installed)
-                print(f"  Removed {installed}")
+        for skill_name in validate_legacy_manifest_entries(path, sorted(load_managed_skills(path))):
+            remove_legacy_directory_if_matches_source(
+                path / skill_name, BUILD_DIR / "skills" / skill_name
+            )
 
         manifest = managed_skills_manifest_path(path)
         if manifest.exists():
@@ -723,20 +974,20 @@ def clean_legacy_installs() -> None:
             print(f"  Removed {manifest}")
 
     if PI_AGENTS_PATH.exists() and AGENTS_DIR.exists():
+        if path_has_unsafe_existing_ancestor(PI_AGENTS_PATH, include_self=True):
+            raise InstallConflict(f"Refusing unsafe legacy install path: {PI_AGENTS_PATH}")
         for agent_file in AGENTS_DIR.iterdir():
             if not agent_file.is_file() or agent_file.suffix != ".md":
                 continue
-            installed = PI_AGENTS_PATH / agent_file.name
-            if installed.exists():
-                installed.unlink()
-                print(f"  Removed {installed}")
+            remove_legacy_file_if_matches_source(PI_AGENTS_PATH / agent_file.name, agent_file)
 
     if PI_EXTENSIONS_PATH.exists():
-        for extension_name in sorted(load_managed_extensions()):
-            installed = PI_EXTENSIONS_PATH / extension_name
-            if installed.exists():
-                shutil.rmtree(installed)
-                print(f"  Removed {installed}")
+        for extension_name in validate_legacy_manifest_entries(
+            PI_EXTENSIONS_PATH, sorted(load_managed_extensions())
+        ):
+            remove_legacy_directory_if_matches_source(
+                PI_EXTENSIONS_PATH / extension_name, BUILD_DIR / "extensions" / extension_name
+            )
 
         manifest = managed_extensions_manifest_path()
         if manifest.exists():
@@ -744,9 +995,10 @@ def clean_legacy_installs() -> None:
             print(f"  Removed {manifest}")
 
     agents_md_path = HOME / ".agents" / "AGENTS.md"
-    if agents_md_path.exists():
-        agents_md_path.unlink()
-        print(f"  Removed {agents_md_path}")
+    if agents_md_path.exists() or agents_md_path.is_symlink():
+        if path_has_unsafe_existing_ancestor(agents_md_path):
+            raise InstallConflict(f"Refusing unsafe legacy install path: {agents_md_path}")
+        remove_legacy_file_if_matches_source(agents_md_path, GLOBAL_AGENTS_MD)
 
 
 def clean() -> None:
@@ -775,7 +1027,7 @@ def main() -> None:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Overwrite managed install destinations and initialize/reset the install manifest",
+        help="Skip install conflict checks and initialize the install manifest when bootstrapping",
     )
     args = parser.parse_args()
 
@@ -800,7 +1052,8 @@ def main() -> None:
                 build_extensions()
                 install_extensions(force=args.force)
         elif args.command == "clean":
-            clean()
+            with install_lock():
+                clean()
     except InstallConflict as error:
         sys.exit(f"Error: {error}")
 

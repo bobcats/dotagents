@@ -20,7 +20,7 @@ help:
 	@echo ""
 	@echo "Usage:"
 	@echo "  make install            Build and install skills, agents, and Pi extensions"
-	@echo "  make install FORCE=1    Force install and initialize/reset manifest"
+	@echo "  make install FORCE=1    Bootstrap over non-empty destinations or skip conflict checks"
 	@echo "  make install-skills     Install skills only"
 	@echo "  make install-extensions Install Pi extensions only"
 	@echo "  make build              Build skills, agents, and Pi extensions"
