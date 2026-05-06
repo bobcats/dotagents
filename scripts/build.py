@@ -311,6 +311,49 @@ def cleanup_backups(swapped: list[SwappedTarget]) -> None:
             remove_path(swapped_target.backup_path)
 
 
+def generated_temp_siblings(destination: Path, label: str) -> list[Path]:
+    parent = destination.parent
+    if not parent.exists() or not parent.is_dir():
+        return []
+
+    prefix = f".{destination.name}.dotagents-{label}-"
+    paths: list[Path] = []
+    for candidate in parent.iterdir():
+        suffix = candidate.name.removeprefix(prefix)
+        parts = suffix.split("-")
+        if (
+            candidate.name.startswith(prefix)
+            and len(parts) == 2
+            and all(part.isdigit() for part in parts)
+        ):
+            paths.append(candidate)
+    return sorted(paths)
+
+
+def cleanup_stale_install_temp_paths(targets: list[InstallTarget], *, force: bool) -> None:
+    for target in targets:
+        stale_stages = generated_temp_siblings(target.destination, "stage")
+        stale_backups = generated_temp_siblings(target.destination, "backup")
+        destination_exists = target.destination.exists() or target.destination.is_symlink()
+
+        if not destination_exists and stale_backups:
+            if len(stale_backups) > 1:
+                raise InstallConflict(
+                    f"Refusing to choose between multiple stale install backups for {target.destination}"
+                )
+            if not force:
+                raise InstallConflict(
+                    f"Stale install backup found for {target.destination}. Run with FORCE=1 to restore it."
+                )
+            for stale_stage in stale_stages:
+                remove_path(stale_stage)
+            stale_backups[0].rename(target.destination)
+            continue
+
+        for stale_path in stale_stages + stale_backups:
+            remove_path(stale_path)
+
+
 def validate_install_target_paths(targets: list[InstallTarget]) -> None:
     unsafe_targets = [
         target.destination
@@ -516,6 +559,7 @@ def safe_install_targets(
     targets = list(targets)
     validate_install_target_paths(targets)
     validate_source_targets(targets)
+    cleanup_stale_install_temp_paths(targets, force=force)
     manifest = manifest_for_install(manifest_path, force, targets)
     preflight_install_targets(targets, manifest, force)
 

@@ -156,6 +156,70 @@ def test_force_removes_stale_managed_files_while_preserving_unmanaged_files(tmp_
     assert (destination / "demo" / "local.txt").read_text() == "manual note\n"
 
 
+def test_install_removes_stale_dotagents_stage_and_backup_siblings(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source / "demo" / "SKILL.md", "repo version\n")
+    destination.mkdir(parents=True)
+    stale_stage = destination.with_name(f".{destination.name}.dotagents-stage-123-0")
+    stale_backup = destination.with_name(f".{destination.name}.dotagents-backup-123-0")
+    nonmatching = destination.with_name(f".{destination.name}.dotagents-stage-manual")
+    write_file(stale_stage / "leftover.txt", "stale stage\n")
+    write_file(stale_backup / "leftover.txt", "stale backup\n")
+    write_file(nonmatching / "leftover.txt", "manual\n")
+
+    target = tree_target(build, "unified-skills", source, destination)
+
+    build.safe_install_targets([target], manifest_path=manifest_path, force=False)
+
+    assert not stale_stage.exists()
+    assert not stale_backup.exists()
+    assert (nonmatching / "leftover.txt").read_text() == "manual\n"
+    assert (destination / "demo" / "SKILL.md").read_text() == "repo version\n"
+
+
+def test_install_restores_single_stale_backup_when_destination_is_missing(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    write_file(source / "demo" / "SKILL.md", "repo version\n")
+    stale_backup = destination.with_name(f".{destination.name}.dotagents-backup-123-0")
+    write_file(stale_backup / "custom" / "SKILL.md", "manual skill\n")
+
+    target = tree_target(build, "unified-skills", source, destination)
+
+    build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    assert not stale_backup.exists()
+    assert (destination / "custom" / "SKILL.md").read_text() == "manual skill\n"
+    assert (destination / "demo" / "SKILL.md").read_text() == "repo version\n"
+
+
+def test_empty_source_target_with_stale_backup_is_refused_without_restoring(tmp_path):
+    build = load_build_module()
+    source = tmp_path / "build" / "skills"
+    destination = tmp_path / "home" / ".agents" / "skills"
+    manifest_path = tmp_path / "state" / "install-manifest.json"
+
+    source.mkdir(parents=True)
+    stale_backup = destination.with_name(f".{destination.name}.dotagents-backup-123-0")
+    write_file(stale_backup / "custom" / "SKILL.md", "manual skill\n")
+
+    target = tree_target(build, "unified-skills", source, destination)
+
+    with pytest.raises(build.InstallConflict, match="No source files"):
+        build.safe_install_targets([target], manifest_path=manifest_path, force=True)
+
+    assert not destination.exists()
+    assert (stale_backup / "custom" / "SKILL.md").read_text() == "manual skill\n"
+    assert not manifest_path.exists()
+
+
 def test_empty_source_target_is_refused_without_changing_destination(tmp_path):
     build = load_build_module()
     source = tmp_path / "build" / "skills"
