@@ -8,6 +8,8 @@ Skills and Pi extensions for AI coding agents.
 make install
 ```
 
+First install bootstraps managed install state automatically when the install destinations are empty. Use `FORCE=1` only when bootstrapping over existing files or intentionally overriding local conflicts; it skips conflict checks without deleting unmanaged files.
+
 This builds and installs:
 - skills for Claude Code, OpenCode, Pi, and Codex
 - Pi subagents
@@ -45,7 +47,8 @@ These methodology skills improve AI agent effectiveness:
 
 | Command | Description |
 |---------|-------------|
-| `make install` | Build and install skills, agents, and Pi extensions |
+| `make install` | Build and safely update skills, agents, and Pi extensions |
+| `make install FORCE=1` | Bootstrap over non-empty destinations or skip local conflict checks |
 | `make build` | Build skills, agents, and Pi extensions to `build/` |
 | `make typecheck` | Type-check Pi extensions |
 | `make install-skills` | Install skills only |
