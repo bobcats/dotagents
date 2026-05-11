@@ -101,7 +101,7 @@ describe("openai-fast extension registration", () => {
 		const extension = _test.createOpenaiFastExtension({
 			resolveFastConfig() {
 				return {
-					configPath: "/tmp/home/.pi/agent/extensions/openai-fast.json",
+					configPath: "/tmp/home/.pi/agent/openai-fast.json",
 					persistState: true,
 					active: false,
 					supportedModels: [{ provider: "openai", id: "gpt-5.4" }],
@@ -142,7 +142,7 @@ describe("openai-fast extension registration", () => {
 		assert.equal(notifications[0], "Fast mode is on for openai/gpt-5.4.");
 		assert.deepEqual(writes, [
 			{
-				path: "/tmp/home/.pi/agent/extensions/openai-fast.json",
+				path: "/tmp/home/.pi/agent/openai-fast.json",
 				config: { persistState: true, active: true, supportedModels: ["openai/gpt-5.4"] },
 			},
 		]);

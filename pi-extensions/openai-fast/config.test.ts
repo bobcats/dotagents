@@ -11,11 +11,11 @@ describe("openai-fast config", () => {
 		const cwd = join(root, "project");
 		const homeDir = join(root, "home");
 
-		mkdirSync(join(homeDir, ".pi", "agent", "extensions"), { recursive: true });
+		mkdirSync(join(homeDir, ".pi", "agent"), { recursive: true });
 		mkdirSync(join(cwd, ".pi", "extensions"), { recursive: true });
 
 		writeFileSync(
-			join(homeDir, ".pi", "agent", "extensions", "openai-fast.json"),
+			join(homeDir, ".pi", "agent", "openai-fast.json"),
 			JSON.stringify({
 				persistState: false,
 				active: false,
@@ -50,7 +50,7 @@ describe("openai-fast config", () => {
 		const root = mkdtempSync(join(tmpdir(), "openai-fast-defaults-"));
 		const cwd = join(root, "project");
 		const homeDir = join(root, "home");
-		const globalConfigPath = join(homeDir, ".pi", "agent", "extensions", "openai-fast.json");
+		const globalConfigPath = join(homeDir, ".pi", "agent", "openai-fast.json");
 
 		mkdirSync(cwd, { recursive: true });
 

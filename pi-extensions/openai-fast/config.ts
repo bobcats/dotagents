@@ -36,7 +36,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function getConfigPaths(cwd: string, homeDir: string = homedir()) {
 	return {
 		projectConfigPath: join(cwd, ".pi", "extensions", FAST_CONFIG_BASENAME),
-		globalConfigPath: join(homeDir, ".pi", "agent", "extensions", FAST_CONFIG_BASENAME),
+		globalConfigPath: join(homeDir, ".pi", "agent", FAST_CONFIG_BASENAME),
 	};
 }
 
