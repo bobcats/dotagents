@@ -59,11 +59,30 @@ These methodology skills improve AI agent effectiveness:
 ## Pi Extensions
 
 This repo now ships these first-class Pi extensions:
+- `pi-extensions/buildr-artifacts/`
 - `pi-extensions/handoff/`
 - `pi-extensions/openai-fast/`
 - `pi-extensions/session-query/`
 
 `openai-fast` adds `/fast` for OpenAI priority service-tier requests on configured models.
+
+`buildr-artifacts` adds a `share_artifact` tool and `/share_artifact` command for publishing local HTML artifacts to Buildr artifact storage.
+
+Examples:
+
+```bash
+/share_artifact ./report.html
+/share_artifact ./dist
+```
+
+With no arguments, `/share_artifact` opens an editor for inline HTML.
+
+Configuration defaults:
+
+- `ARTIFACTS_S3_BUCKET=buildr-bizops-artifacts`
+- `ARTIFACTS_BASE_URL=https://artifacts.buildrtools.com`
+
+It uses normal AWS SDK credential resolution on the local machine. For local S3-compatible endpoints, set `ARTIFACTS_S3_ENDPOINT`; path-style addressing defaults on when an endpoint is configured.
 
 Install path:
 - `~/.pi/agent/extensions/`
