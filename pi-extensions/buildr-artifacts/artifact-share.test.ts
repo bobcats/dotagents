@@ -21,6 +21,7 @@ const BUCKET = "test-artifacts";
 const require = createRequire(import.meta.url);
 const S3rver = requireS3rver();
 let servers: S3rverType[] = [];
+let clients: S3Client[] = [];
 
 function requireS3rver(): typeof S3rverType {
 	const loader = Module as unknown as {
@@ -87,6 +88,7 @@ async function startFakeS3(): Promise<{ endpoint: string; client: S3Client }> {
 		forcePathStyle: true,
 		region: "us-east-1",
 	});
+	clients.push(client);
 	return { endpoint, client };
 }
 
@@ -101,6 +103,10 @@ async function objectContentType(client: S3Client, key: string): Promise<string 
 }
 
 afterEach(async () => {
+	for (const client of clients) {
+		client.destroy();
+	}
+	clients = [];
 	await Promise.all(servers.map((server) => server.close()));
 	servers = [];
 });
