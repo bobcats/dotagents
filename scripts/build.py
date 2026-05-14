@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Literal
@@ -628,6 +629,32 @@ def build_skill(name: str, source: Path) -> bool:
     return True
 
 
+def should_bundle_extension(source: Path) -> bool:
+    return (source / ".bundle").exists()
+
+
+def bundle_extension(name: str, source: Path, dest: Path) -> None:
+    dest.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "pnpm",
+            "exec",
+            "esbuild",
+            str(source / "index.ts"),
+            "--bundle",
+            "--platform=node",
+            "--format=esm",
+            "--outfile=" + str(dest / "index.ts"),
+            "--external:@mariozechner/pi-coding-agent",
+            "--external:@mariozechner/pi-ai",
+            "--external:@mariozechner/pi-tui",
+            "--external:@sinclair/typebox",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+
+
 def build_extension(name: str, source: Path) -> bool:
     """Build a single Pi extension from a source directory."""
     entrypoint = source / "index.ts"
@@ -638,7 +665,11 @@ def build_extension(name: str, source: Path) -> bool:
     dest = BUILD_DIR / "extensions" / name
     if dest.exists():
         shutil.rmtree(dest)
-    shutil.copytree(source, dest)
+
+    if should_bundle_extension(source):
+        bundle_extension(name, source, dest)
+    else:
+        shutil.copytree(source, dest)
     return True
 
 

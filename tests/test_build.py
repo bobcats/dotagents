@@ -191,6 +191,34 @@ class BuildExtensionsTests(unittest.TestCase):
             self.assertTrue((self.build.BUILD_DIR / "extensions" / "handoff" / "index.ts").exists())
             self.assertTrue((self.build.BUILD_DIR / "extensions" / "handoff" / "events.ts").exists())
 
+    def test_build_extensions_bundles_marked_extension(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "pi-extensions"
+            ext_dir = source / "buildr-artifacts"
+            ext_dir.mkdir(parents=True)
+            (ext_dir / "index.ts").write_text("import './helper.js';\nexport default function () {}\n")
+            (ext_dir / "helper.ts").write_text("export const value = 1\n")
+            (ext_dir / ".bundle").write_text("true\n")
+
+            calls = []
+            self.build.PI_EXTENSIONS_DIR = source
+            self.build.BUILD_DIR = root / "build"
+            self.build.bundle_extension = lambda name, source_path, dest_path: calls.append(
+                (name, source_path, dest_path)
+            ) or dest_path.mkdir(parents=True) or (dest_path / "index.ts").write_text("// bundled\n")
+
+            self.build.build_extensions()
+
+            self.assertEqual(
+                calls,
+                [("buildr-artifacts", ext_dir, self.build.BUILD_DIR / "extensions" / "buildr-artifacts")],
+            )
+            self.assertEqual(
+                (self.build.BUILD_DIR / "extensions" / "buildr-artifacts" / "index.ts").read_text(),
+                "// bundled\n",
+            )
+
     def test_install_extensions_preserves_unmanaged_and_removes_stale_after_bootstrap(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
