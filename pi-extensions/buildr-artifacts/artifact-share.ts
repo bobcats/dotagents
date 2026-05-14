@@ -172,7 +172,8 @@ function buildArtifactUrl(baseUrl: string, slug: string): string {
 function shouldUseExplicitIndexHtml(baseUrl: string): boolean {
 	try {
 		const parsed = new URL(baseUrl);
-		return ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname) && parsed.port === "9000";
+		const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+		return ["localhost", "127.0.0.1", "::1"].includes(hostname) && parsed.port === "9000";
 	} catch {
 		return false;
 	}

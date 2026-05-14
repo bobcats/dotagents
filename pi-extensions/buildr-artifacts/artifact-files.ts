@@ -6,9 +6,10 @@ import {
 	openSync,
 	readdirSync,
 	readFileSync,
+	realpathSync,
 	type Stats,
 } from "node:fs";
-import { extname, join, relative, resolve } from "node:path";
+import { extname, isAbsolute, join, relative, resolve } from "node:path";
 
 const CONTENT_TYPES: Record<string, string> = {
 	".css": "text/css",
@@ -46,6 +47,7 @@ export interface CollectedArtifactFile {
 	expectedDev: number;
 	expectedIno: number;
 	expectedSizeBytes: number;
+	rootRealPath: string;
 }
 
 interface ArtifactCollectionLimits {
@@ -76,7 +78,8 @@ export function collectArtifactFiles(
 		}
 
 		const files: CollectedArtifactFile[] = [];
-		pushCollectedArtifactFile(files, "index.html", resolvedHostPath, stat, state, limits);
+		const rootRealPath = realpathSync(resolvedHostPath);
+		pushCollectedArtifactFile(files, "index.html", resolvedHostPath, stat, state, limits, rootRealPath);
 		assertArtifactFilesWithinSizeLimit(files);
 		return files;
 	}
@@ -85,10 +88,12 @@ export function collectArtifactFiles(
 		throw new Error(`Path is neither a file nor a directory: ${resolvedHostPath}`);
 	}
 
+	const rootRealPath = realpathSync(resolvedHostPath);
 	const indexPath = join(resolvedHostPath, "index.html");
 	const indexStat = lstatNoSymlink(
 		indexPath,
 		`Directory must contain an index.html at its root: ${resolvedHostPath}`,
+		rootRealPath,
 	);
 
 	if (!indexStat.isFile()) {
@@ -96,7 +101,7 @@ export function collectArtifactFiles(
 	}
 
 	const files: CollectedArtifactFile[] = [];
-	walkDir(resolvedHostPath, resolvedHostPath, 0, files, state, limits);
+	walkDir(resolvedHostPath, resolvedHostPath, 0, files, state, limits, rootRealPath);
 	assertArtifactFilesWithinSizeLimit(files);
 	return files;
 }
@@ -118,7 +123,7 @@ function resolvePositiveInteger(value: number | undefined, fallback: number, nam
 	return resolved;
 }
 
-function lstatNoSymlink(path: string, missingError: string): Stats {
+function lstatNoSymlink(path: string, missingError: string, rootRealPath?: string): Stats {
 	let stat: Stats;
 	try {
 		stat = lstatSync(path);
@@ -137,6 +142,10 @@ function lstatNoSymlink(path: string, missingError: string): Stats {
 		throw new Error(`symlink paths are not allowed: ${path}`);
 	}
 
+	if (rootRealPath) {
+		assertRealPathWithinRoot(rootRealPath, path);
+	}
+
 	return stat;
 }
 
@@ -147,16 +156,17 @@ function walkDir(
 	files: CollectedArtifactFile[],
 	state: ArtifactCollectionState,
 	limits: ArtifactCollectionLimits,
+	rootRealPath: string,
 ): void {
 	for (const entryName of readdirSync(currentDir).sort()) {
 		const fullPath = join(currentDir, entryName);
-		const entryStat = lstatNoSymlink(fullPath, `Path does not exist: ${fullPath}`);
+		const entryStat = lstatNoSymlink(fullPath, `Path does not exist: ${fullPath}`, rootRealPath);
 
 		if (entryStat.isDirectory()) {
 			if (depth + 1 > limits.maxDepth) {
 				throw new Error(`Artifact depth limit exceeded (${limits.maxDepth}): ${fullPath}`);
 			}
-			walkDir(baseDir, fullPath, depth + 1, files, state, limits);
+			walkDir(baseDir, fullPath, depth + 1, files, state, limits, rootRealPath);
 			continue;
 		}
 
@@ -169,6 +179,7 @@ function walkDir(
 				entryStat,
 				state,
 				limits,
+				rootRealPath,
 			);
 			continue;
 		}
@@ -195,6 +206,7 @@ function pushCollectedArtifactFile(
 	stat: Stats,
 	state: ArtifactCollectionState,
 	limits: ArtifactCollectionLimits,
+	rootRealPath: string,
 ): void {
 	state.fileCount += 1;
 	if (state.fileCount > limits.maxFiles) {
@@ -207,6 +219,7 @@ function pushCollectedArtifactFile(
 		expectedIno: stat.ino,
 		expectedSizeBytes: stat.size,
 		relativePath,
+		rootRealPath,
 	});
 }
 
@@ -228,6 +241,7 @@ function openReadonlyNoFollow(path: string): number {
 }
 
 export function readArtifactFileSafely(file: CollectedArtifactFile): Buffer {
+	assertRealPathWithinRoot(file.rootRealPath, file.absolutePath);
 	const fd = openReadonlyNoFollow(file.absolutePath);
 	try {
 		const openedStat = fstatSync(fd);
@@ -247,6 +261,14 @@ export function readArtifactFileSafely(file: CollectedArtifactFile): Buffer {
 		return readFileSync(fd);
 	} finally {
 		closeSync(fd);
+	}
+}
+
+function assertRealPathWithinRoot(rootRealPath: string, path: string): void {
+	const fileRealPath = realpathSync(path);
+	const relativePath = relative(rootRealPath, fileRealPath);
+	if (relativePath && (relativePath.startsWith("..") || isAbsolute(relativePath))) {
+		throw new Error(`Path resolves outside artifact root: ${path}`);
 	}
 }
 

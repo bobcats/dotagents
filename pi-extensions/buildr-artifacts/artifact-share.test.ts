@@ -175,4 +175,18 @@ describe("shareArtifactFromHostPath", () => {
 
 		assert.equal(result.url, "http://localhost:9000/test-artifacts/local-slug/index.html");
 	});
+
+	it("returns explicit index.html for IPv6 localhost port 9000 base URLs", async () => {
+		const { client } = await startFakeS3();
+		const upload = createS3ArtifactUpload(BUCKET, client);
+
+		const result = await shareArtifactFromHtml({
+			baseUrl: "http://[::1]:9000/test-artifacts",
+			html: "<h1>Local</h1>",
+			slug: "ipv6-slug",
+			upload,
+		});
+
+		assert.equal(result.url, "http://[::1]:9000/test-artifacts/ipv6-slug/index.html");
+	});
 });

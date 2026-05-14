@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -82,5 +82,22 @@ describe("collectArtifactFiles", () => {
 		await symlink(join(root, "target.js"), join(root, "linked.js"));
 
 		assert.throws(() => collectArtifactFiles(root), /symlink paths are not allowed/);
+	});
+
+	it("rejects files whose parent directory resolves outside the artifact root after collection", async () => {
+		const root = tempDir();
+		const outside = tempDir();
+		await mkdir(join(root, "assets"));
+		await writeFile(join(root, "index.html"), "<h1>OK</h1>");
+		await writeFile(join(root, "assets", "app.js"), "console.log('inside');");
+		await writeFile(join(outside, "app.js"), "console.log('outside');");
+		const files = collectArtifactFiles(root);
+		const appFile = files.find((file) => file.relativePath === "assets/app.js");
+		assert.ok(appFile);
+
+		await rm(join(root, "assets"), { recursive: true });
+		await symlink(outside, join(root, "assets"));
+
+		assert.throws(() => readArtifactFileSafely(appFile), /outside artifact root/);
 	});
 });
