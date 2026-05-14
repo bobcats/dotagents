@@ -76,7 +76,7 @@ export default function buildrArtifacts(pi: ExtensionAPI) {
 		],
 		parameters: shareArtifactSchema,
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
-			onUpdate?.({ content: [{ type: "text", text: "Uploading artifact..." }] });
+			onUpdate?.({ content: [{ type: "text", text: "Uploading artifact..." }], details: {} });
 			const result = await shareArtifact(params, ctx, runtimeConfigFactory(), signal);
 			return {
 				content: [{ type: "text" as const, text: result.url }],
