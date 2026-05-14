@@ -41,4 +41,41 @@ describe("resolveS3ClientConfig", () => {
 			{ endpoint: "http://127.0.0.1:4568", forcePathStyle: false, region: "us-west-2" },
 		);
 	});
+
+	it("prefers artifact-specific AWS region over the global AWS region", () => {
+		assert.deepEqual(
+			resolveS3ClientConfig({
+				ARTIFACTS_AWS_REGION: "us-east-2",
+				AWS_REGION: "us-west-2",
+			}),
+			{ endpoint: undefined, forcePathStyle: false, region: "us-east-2" },
+		);
+	});
+
+	it("uses artifact-specific AWS credentials when access key and secret are set", () => {
+		assert.deepEqual(
+			resolveS3ClientConfig({
+				ARTIFACTS_AWS_ACCESS_KEY_ID: "artifact-key",
+				ARTIFACTS_AWS_SECRET_ACCESS_KEY: "artifact-secret",
+				ARTIFACTS_AWS_SESSION_TOKEN: "artifact-token",
+			}),
+			{
+				credentials: {
+					accessKeyId: "artifact-key",
+					secretAccessKey: "artifact-secret",
+					sessionToken: "artifact-token",
+				},
+				endpoint: undefined,
+				forcePathStyle: false,
+				region: undefined,
+			},
+		);
+	});
+
+	it("rejects partial artifact-specific AWS credentials", () => {
+		assert.throws(
+			() => resolveS3ClientConfig({ ARTIFACTS_AWS_ACCESS_KEY_ID: "artifact-key" }),
+			/ARTIFACTS_AWS_ACCESS_KEY_ID and ARTIFACTS_AWS_SECRET_ACCESS_KEY must be set together/,
+		);
+	});
 });

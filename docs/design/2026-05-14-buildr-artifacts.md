@@ -36,7 +36,8 @@ Optional local/test endpoint support:
 
 - `ARTIFACTS_S3_ENDPOINT` or `AWS_ENDPOINT_URL_S3`
 - `ARTIFACTS_S3_FORCE_PATH_STYLE`
-- `AWS_REGION`
+- `ARTIFACTS_AWS_REGION` with `AWS_REGION` as fallback
+- `ARTIFACTS_AWS_ACCESS_KEY_ID`, `ARTIFACTS_AWS_SECRET_ACCESS_KEY`, and optional `ARTIFACTS_AWS_SESSION_TOKEN`
 
 If an endpoint is configured, path-style addressing defaults on unless explicitly disabled. This supports fake S3 and local S3-compatible services.
 

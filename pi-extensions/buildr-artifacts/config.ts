@@ -24,7 +24,38 @@ export function resolveArtifactConfig(env: NodeJS.ProcessEnv): ArtifactConfig {
 export function resolveS3ClientConfig(env: NodeJS.ProcessEnv): S3ClientConfig {
 	const endpoint = env.ARTIFACTS_S3_ENDPOINT ?? env.AWS_ENDPOINT_URL_S3;
 	const forcePathStyle = parseBooleanEnv(env.ARTIFACTS_S3_FORCE_PATH_STYLE) ?? Boolean(endpoint);
-	return { endpoint, forcePathStyle, region: env.AWS_REGION };
+	const credentials = resolveArtifactCredentials(env);
+	return {
+		...(credentials ? { credentials } : {}),
+		endpoint,
+		forcePathStyle,
+		region: env.ARTIFACTS_AWS_REGION ?? env.AWS_REGION,
+	};
+}
+
+function resolveArtifactCredentials(env: NodeJS.ProcessEnv): S3ClientConfig["credentials"] {
+	const accessKeyId = nonEmptyEnv(env.ARTIFACTS_AWS_ACCESS_KEY_ID);
+	const secretAccessKey = nonEmptyEnv(env.ARTIFACTS_AWS_SECRET_ACCESS_KEY);
+	const sessionToken = nonEmptyEnv(env.ARTIFACTS_AWS_SESSION_TOKEN);
+
+	if (!accessKeyId && !secretAccessKey && !sessionToken) {
+		return undefined;
+	}
+
+	if (!accessKeyId || !secretAccessKey) {
+		throw new Error(
+			"ARTIFACTS_AWS_ACCESS_KEY_ID and ARTIFACTS_AWS_SECRET_ACCESS_KEY must be set together.",
+		);
+	}
+
+	return { accessKeyId, secretAccessKey, sessionToken };
+}
+
+function nonEmptyEnv(value: string | undefined): string | undefined {
+	if (value?.trim()) {
+		return value;
+	}
+	return undefined;
 }
 
 export function createArtifactRuntimeConfig(

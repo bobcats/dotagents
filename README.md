@@ -82,7 +82,7 @@ Configuration defaults:
 - `ARTIFACTS_S3_BUCKET=buildr-bizops-artifacts`
 - `ARTIFACTS_BASE_URL=https://artifacts.buildrtools.com`
 
-It uses normal AWS SDK credential resolution on the local machine. For local S3-compatible endpoints, set `ARTIFACTS_S3_ENDPOINT`; path-style addressing defaults on when an endpoint is configured.
+Use `ARTIFACTS_AWS_REGION` to set the artifact upload region without changing global AWS behavior. For artifact-scoped credentials, set `ARTIFACTS_AWS_ACCESS_KEY_ID`, `ARTIFACTS_AWS_SECRET_ACCESS_KEY`, and optionally `ARTIFACTS_AWS_SESSION_TOKEN`. If unset, the extension falls back to normal AWS SDK credential resolution. For local S3-compatible endpoints, set `ARTIFACTS_S3_ENDPOINT`; path-style addressing defaults on when an endpoint is configured.
 
 Install path:
 - `~/.pi/agent/extensions/`
