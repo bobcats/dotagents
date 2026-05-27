@@ -41,9 +41,8 @@ import {
 	type HandoffOptions,
 } from "./lib/effective-options.js";
 import { loadModeSpec } from "./lib/mode-utils.js";
+import { buildFinalPrompt } from "./lib/session-lineage.js";
 import { prepareToolHandoff } from "./lib/tool-path.js";
-
-const SESSION_QUERY_SKILL_COMMAND = "/skill:session-query";
 
 const HANDOFF_GLOBAL_KEY = Symbol.for("pi-amplike-handoff-pending");
 type PendingHandoffGlobal = { prompt: string; options?: HandoffOptions } | null;
@@ -242,12 +241,11 @@ async function performHandoff(
 		return "Handoff cancelled.";
 	}
 
-	let finalPrompt = result;
-	if (currentSessionFile) {
-		finalPrompt = `${goal}\n\n${SESSION_QUERY_SKILL_COMMAND}\n\n**Parent session:** \`${currentSessionFile}\`\n\n${result}`;
-	} else {
-		finalPrompt = `${goal}\n\n${result}`;
-	}
+	const finalPrompt = buildFinalPrompt({
+		goal,
+		summary: result,
+		currentSessionFile,
+	});
 
 	setPendingHandoffGlobal({ prompt: finalPrompt, options: effectiveOptions });
 	const newSessionResult = await ctx.newSession({ parentSession: currentSessionFile });
